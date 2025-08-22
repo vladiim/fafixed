@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+
+{% block title %}Connect to Xero - FAFixed{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-brand-white flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-lg w-full space-y-8">
+        <!-- Header -->
+        <div class="text-center">
+            <a href="{% url 'home' %}" class="inline-block mb-8">
+                <h1 class="text-3xl font-heading font-bold text-brand-black">
+                    FA<span class="text-brand-green">Fixed</span>
+                </h1>
+            </a>
+            <h2 class="text-2xl font-heading font-semibold text-brand-black mb-2">
+                Connect to Xero
+            </h2>
+            <p class="text-gray-600">
+                We'll securely connect to your Xero account to analyze your data
+            </p>
+        </div>
+
+        <!-- Connection Process -->
+        <div class="bg-white rounded-lg border border-gray-200 p-6">
+            <div class="space-y-6">
+                <!-- Step indicator -->
+                <div class="flex items-center justify-center space-x-4">
+                    <div class="flex items-center">
+                        <div class="w-8 h-8 bg-brand-green text-white rounded-full flex items-center justify-center text-sm font-medium">
+                            1
+                        </div>
+                        <span class="ml-2 text-sm text-gray-600">Connect</span>
+                    </div>
+                    <div class="w-8 border-t border-gray-300"></div>
+                    <div class="flex items-center">
+                        <div class="w-8 h-8 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center text-sm font-medium">
+                            2
+                        </div>
+                        <span class="ml-2 text-sm text-gray-400">Select</span>
+                    </div>
+                    <div class="w-8 border-t border-gray-300"></div>
+                    <div class="flex items-center">
+                        <div class="w-8 h-8 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center text-sm font-medium">
+                            3
+                        </div>
+                        <span class="ml-2 text-sm text-gray-400">Import</span>
+                    </div>
+                </div>
+
+                <!-- Xero Connection Info -->
+                <div class="text-center space-y-4">
+                    <div class="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                        <i class="fas fa-chart-line text-blue-600 text-2xl"></i>
+                    </div>
+                    <h3 class="font-heading font-semibold text-brand-black">Secure Connection</h3>
+                    <p class="text-sm text-gray-600">
+                        We use bank-level encryption to connect to your Xero account. 
+                        We only read your data - we never modify anything.
+                    </p>
+                </div>
+
+                <!-- What we access -->
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <h4 class="font-medium text-brand-black mb-3">What we'll access:</h4>
+                    <ul class="space-y-2 text-sm text-gray-600">
+                        <li class="flex items-center">
+                            <i class="fas fa-check text-brand-green mr-2"></i>
+                            Account information and organization details
+                        </li>
+                        <li class="flex items-center">
+                            <i class="fas fa-check text-brand-green mr-2"></i>
+                            Transaction history and patterns
+                        </li>
+                        <li class="flex items-center">
+                            <i class="fas fa-check text-brand-green mr-2"></i>
+                            Chart of accounts and categorization
+                        </li>
+                        <li class="flex items-center">
+                            <i class="fas fa-times text-brand-red mr-2"></i>
+                            We never access bank account details
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Connect Button -->
+                <div class="text-center">
+                    <a href="{% url 'xero_callback' %}" class="btn-primary inline-flex items-center space-x-3">
+                        <i class="fab fa-xero text-xl"></i>
+                        <span>Connect to Xero</span>
+                        <i class="fas fa-external-link-alt"></i>
+                    </a>
+                    <p class="text-xs text-gray-500 mt-3">
+                        You'll be redirected to Xero's secure login page
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Security badges -->
+        <div class="text-center">
+            <p class="text-xs text-gray-500 mb-3">Protected by enterprise-grade security</p>
+            <div class="flex justify-center space-x-8 text-gray-400">
+                <div class="text-center">
+                    <i class="fas fa-shield-alt text-lg mb-1"></i>
+                    <p class="text-xs">SSL Encrypted</p>
+                </div>
+                <div class="text-center">
+                    <i class="fas fa-lock text-lg mb-1"></i>
+                    <p class="text-xs">Read-Only Access</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
