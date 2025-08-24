@@ -21,8 +21,23 @@
         </div>
 
         <!-- Registration Form -->
-        <form class="space-y-6" method="post">
+        <form class="space-y-6" method="post" data-turbo="false">
             {% csrf_token %}
+            
+            <!-- Debug all form errors -->
+            {% if form.errors %}
+                <div class="bg-brand-red bg-opacity-10 border border-brand-red text-brand-red px-4 py-3 rounded-lg mb-4">
+                    <h4 class="font-semibold mb-2">Please correct the following errors:</h4>
+                    {% for field, errors in form.errors.items %}
+                        {% if field != '__all__' %}
+                            <p class="text-sm"><strong>{{ field|title }}:</strong></p>
+                        {% endif %}
+                        {% for error in errors %}
+                            <p class="text-sm ml-4">{{ error }}</p>
+                        {% endfor %}
+                    {% endfor %}
+                </div>
+            {% endif %}
             
             {% if form.non_field_errors %}
                 <div class="bg-brand-red bg-opacity-10 border border-brand-red text-brand-red px-4 py-3 rounded-lg">
@@ -39,8 +54,23 @@
                 <input type="email" name="{{ form.email.name }}" id="{{ form.email.id_for_label }}" 
                        class="form-input w-full {% if form.email.errors %}border-brand-red{% endif %}" 
                        value="{{ form.email.value|default:'' }}" required>
+                <!-- Debug: {{ form.email.errors }} -->
                 {% if form.email.errors %}
                     {% for error in form.email.errors %}
+                        <p class="text-brand-red text-sm mt-1">{{ error }}</p>
+                    {% endfor %}
+                {% endif %}
+            </div>
+
+            <div>
+                <label for="{{ form.company_name.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                    Company Name
+                </label>
+                <input type="text" name="{{ form.company_name.name }}" id="{{ form.company_name.id_for_label }}" 
+                       class="form-input w-full {% if form.company_name.errors %}border-brand-red{% endif %}" 
+                       value="{{ form.company_name.value|default:'' }}" required>
+                {% if form.company_name.errors %}
+                    {% for error in form.company_name.errors %}
                         <p class="text-brand-red text-sm mt-1">{{ error }}</p>
                     {% endfor %}
                 {% endif %}
