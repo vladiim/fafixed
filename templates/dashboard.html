@@ -1,0 +1,190 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - FAFixed{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50">
+    <!-- Top Navigation -->
+    <nav class="bg-brand-white border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <h1 class="text-2xl font-heading font-bold text-brand-black">
+                        FA<span class="text-brand-green">Fixed</span>
+                    </h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm text-gray-600">{{ user.email }}</span>
+                    <a href="{% url 'logout' %}" class="text-sm text-gray-500 hover:text-brand-black">
+                        <i class="fas fa-sign-out-alt mr-1"></i>
+                        Logout
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="flex">
+        <!-- Sidebar -->
+        <div class="w-64 bg-brand-white shadow-sm h-screen sticky top-0">
+            <div class="p-6">
+                <!-- Summary Stats -->
+                <div class="mb-8">
+                    <h3 class="font-heading font-semibold text-brand-black mb-4">Overview</h3>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div class="flex items-center">
+                                <div class="w-3 h-3 bg-brand-red rounded-full mr-3"></div>
+                                <span class="text-sm text-gray-700">Critical</span>
+                            </div>
+                            <span class="font-medium text-brand-black">{{ critical_issues }}</span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div class="flex items-center">
+                                <div class="w-3 h-3 bg-orange-500 rounded-full mr-3"></div>
+                                <span class="text-sm text-gray-700">High</span>
+                            </div>
+                            <span class="font-medium text-brand-black">{{ high_issues }}</span>
+                        </div>
+                        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div class="flex items-center">
+                                <div class="w-3 h-3 bg-gray-400 rounded-full mr-3"></div>
+                                <span class="text-sm text-gray-700">Total</span>
+                            </div>
+                            <span class="font-medium text-brand-black">{{ total_issues }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Connected Accounts -->
+                <div>
+                    <h3 class="font-heading font-semibold text-brand-black mb-4">Connected Accounts</h3>
+                    <div class="space-y-2">
+                        {% for integration in integrations %}
+                        <div class="p-3 border border-gray-200 rounded-lg">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="font-medium text-brand-black text-sm">{{ integration.organization_name }}</span>
+                                <i class="fab fa-xero text-blue-600 text-sm"></i>
+                            </div>
+                            <p class="text-xs text-gray-600">{{ integration.account_name }}</p>
+                            <div class="flex items-center mt-2">
+                                <div class="w-2 h-2 bg-brand-green rounded-full mr-2"></div>
+                                <span class="text-xs text-gray-500">{{ integration.issues.count }} issues</span>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="text-center p-4 text-gray-500">
+                            <i class="fas fa-plug text-2xl mb-2"></i>
+                            <p class="text-sm">No accounts connected</p>
+                            <a href="{% url 'xero_connect' %}" class="text-brand-black hover:underline text-sm font-medium">
+                                Connect Xero
+                            </a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 p-8">
+            <!-- Header -->
+            <div class="mb-8">
+                <h2 class="text-3xl font-heading font-bold text-brand-black mb-2">Issues Dashboard</h2>
+                <p class="text-gray-600">Data quality issues found in your connected accounts</p>
+            </div>
+
+            <!-- Issues List -->
+            {% if issues %}
+            <div class="bg-brand-white rounded-lg shadow-sm border border-gray-200">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <h3 class="font-heading font-semibold text-brand-black">Active Issues</h3>
+                        <span class="text-sm text-gray-500">{{ total_issues }} total</span>
+                    </div>
+                </div>
+                
+                <div class="divide-y divide-gray-200">
+                    {% for issue in issues %}
+                    <div class="p-6 hover:bg-gray-50">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1">
+                                <div class="flex items-center mb-2">
+                                    <!-- Severity badge -->
+                                    {% if issue.severity == 'critical' %}
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-brand-red bg-opacity-10 text-brand-red mr-3">
+                                            <i class="fas fa-exclamation-triangle mr-1"></i>
+                                            Critical
+                                        </span>
+                                    {% elif issue.severity == 'high' %}
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 mr-3">
+                                            <i class="fas fa-exclamation-circle mr-1"></i>
+                                            High
+                                        </span>
+                                    {% elif issue.severity == 'medium' %}
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 mr-3">
+                                            <i class="fas fa-exclamation mr-1"></i>
+                                            Medium
+                                        </span>
+                                    {% else %}
+                                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 mr-3">
+                                            <i class="fas fa-info-circle mr-1"></i>
+                                            Low
+                                        </span>
+                                    {% endif %}
+                                    
+                                    <!-- Category -->
+                                    <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                        {{ issue.get_category_display }}
+                                    </span>
+                                </div>
+                                
+                                <h4 class="font-medium text-brand-black mb-1">{{ issue.title }}</h4>
+                                <p class="text-sm text-gray-600 mb-3">{{ issue.description }}</p>
+                                
+                                <div class="flex items-center text-xs text-gray-500 space-x-4">
+                                    <span>
+                                        <i class="fas fa-building mr-1"></i>
+                                        {{ issue.integration.organization_name }}
+                                    </span>
+                                    <span>
+                                        <i class="fas fa-clock mr-1"></i>
+                                        {{ issue.last_seen|timesince }} ago
+                                    </span>
+                                    {% if issue.count > 1 %}
+                                    <span>
+                                        <i class="fas fa-copy mr-1"></i>
+                                        {{ issue.count }} occurrences
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="ml-4 flex-shrink-0">
+                                <button class="text-gray-400 hover:text-brand-black">
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% else %}
+            <!-- Empty state -->
+            <div class="bg-brand-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+                <div class="mx-auto w-24 h-24 bg-brand-green bg-opacity-10 rounded-full flex items-center justify-center mb-6">
+                    <i class="fas fa-check-circle text-brand-green text-3xl"></i>
+                </div>
+                <h3 class="font-heading font-semibold text-brand-black text-xl mb-2">All Clean!</h3>
+                <p class="text-gray-600 mb-6">No data quality issues found in your connected accounts.</p>
+                <a href="{% url 'xero_connect' %}" class="btn-primary">
+                    <i class="fas fa-plus mr-2"></i>
+                    Connect Another Account
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

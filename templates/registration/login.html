@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+
+{% block title %}Sign In - FAFixed{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-brand-white flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full space-y-8">
+        <!-- Header -->
+        <div class="text-center">
+            <a href="{% url 'home' %}" class="inline-block mb-8">
+                <h1 class="text-3xl font-heading font-bold text-brand-black">
+                    FA<span class="text-brand-green">Fixed</span>
+                </h1>
+            </a>
+            <h2 class="text-2xl font-heading font-semibold text-brand-black mb-2">
+                Welcome Back
+            </h2>
+            <p class="text-gray-600">
+                Sign in to your account
+            </p>
+        </div>
+
+        <!-- Login Form -->
+        <form class="space-y-6" method="post">
+            {% csrf_token %}
+            
+            {% if form.non_field_errors %}
+                <div class="bg-brand-red bg-opacity-10 border border-brand-red text-brand-red px-4 py-3 rounded-lg">
+                    {% for error in form.non_field_errors %}
+                        <p class="text-sm">{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <div>
+                <label for="{{ form.username.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                    Email Address
+                </label>
+                <input type="email" name="{{ form.username.name }}" id="{{ form.username.id_for_label }}" 
+                       class="form-input w-full {% if form.username.errors %}border-brand-red{% endif %}" 
+                       value="{{ form.username.value|default:'' }}" required>
+                {% if form.username.errors %}
+                    {% for error in form.username.errors %}
+                        <p class="text-brand-red text-sm mt-1">{{ error }}</p>
+                    {% endfor %}
+                {% endif %}
+            </div>
+
+            <div>
+                <label for="{{ form.password.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                    Password
+                </label>
+                <input type="password" name="{{ form.password.name }}" id="{{ form.password.id_for_label }}" 
+                       class="form-input w-full {% if form.password.errors %}border-brand-red{% endif %}" required>
+                {% if form.password.errors %}
+                    {% for error in form.password.errors %}
+                        <p class="text-brand-red text-sm mt-1">{{ error }}</p>
+                    {% endfor %}
+                {% endif %}
+            </div>
+
+            <div>
+                <button type="submit" class="btn-primary w-full">
+                    Sign In
+                </button>
+            </div>
+
+            <div class="text-center">
+                <p class="text-sm text-gray-600">
+                    Don't have an account? 
+                    <a href="{% url 'register' %}" class="text-brand-black hover:underline font-medium">
+                        Create one free
+                    </a>
+                </p>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

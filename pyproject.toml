@@ -1,0 +1,13 @@
+[project]
+name = "fafixed"
+version = "0.1.0"
+description = "SaaS for financial accountants to clean Xero data with AI"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "django>=5.0",
+    "psycopg2-binary",
+    "python-dotenv",
+    "whitenoise",
+    "django-extensions",
+]

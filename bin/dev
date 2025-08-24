@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+# Start Tailwind CSS watcher in background
+npx tailwindcss -i ./static/src/input.css -o ./static/dist/styles.css --watch &
+TAILWIND_PID=$!
+
+# Function to kill background processes
+cleanup() {
+    echo "Stopping development server..."
+    kill $TAILWIND_PID 2>/dev/null
+    exit
+}
+
+# Set trap to cleanup on script exit
+trap cleanup INT TERM
+
+# Start Django development server
+uv run python manage.py runserver
+
+# Kill background processes when Django server stops
+cleanup

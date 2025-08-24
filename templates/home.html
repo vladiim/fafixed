@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="min-h-screen bg-brand-white">
+    <!-- Hero Section -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex flex-col items-center justify-center min-h-screen text-center">
+            <!-- Logo/Brand -->
+            <div class="mb-8">
+                <h1 class="text-6xl font-heading font-bold text-brand-black mb-4">
+                    FA<span class="text-brand-green">Fixed</span>
+                </h1>
+                <div class="w-20 h-1 bg-brand-black mx-auto"></div>
+            </div>
+            
+            <!-- Hero Content -->
+            <div class="max-w-4xl mx-auto mb-12">
+                <h2 class="text-4xl sm:text-5xl font-heading font-bold text-brand-black mb-6 leading-tight">
+                    Clean Your Xero Data with AI
+                </h2>
+                <p class="text-xl text-gray-600 mb-8 leading-relaxed max-w-3xl mx-auto">
+                    Stop wasting hours fixing data inconsistencies. Our AI-powered platform automatically detects and helps resolve issues in your Xero accounting data, so you can focus on what matters most.
+                </p>
+                
+                <!-- Key Benefits -->
+                <div class="grid md:grid-cols-3 gap-8 mb-12 text-left max-w-4xl mx-auto">
+                    <div class="flex items-start space-x-3">
+                        <i class="fas fa-robot text-brand-green text-2xl mt-1"></i>
+                        <div>
+                            <h3 class="font-heading font-semibold text-brand-black mb-2">AI-Powered Detection</h3>
+                            <p class="text-gray-600">Automatically find data inconsistencies and anomalies</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start space-x-3">
+                        <i class="fas fa-clock text-brand-green text-2xl mt-1"></i>
+                        <div>
+                            <h3 class="font-heading font-semibold text-brand-black mb-2">Save Hours Daily</h3>
+                            <p class="text-gray-600">Reduce manual data cleaning from hours to minutes</p>
+                        </div>
+                    </div>
+                    <div class="flex items-start space-x-3">
+                        <i class="fas fa-shield-alt text-brand-green text-2xl mt-1"></i>
+                        <div>
+                            <h3 class="font-heading font-semibold text-brand-black mb-2">Built for ATO Compliance</h3>
+                            <p class="text-gray-600">Purpose-built for Australian tax regulations and reporting standards</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- CTA Button -->
+            <div class="mb-16">
+                <a href="{% url 'register' %}" class="btn-primary text-lg px-12 py-4 inline-flex items-center space-x-3 hover:shadow-lg transform hover:scale-105 transition-all duration-200">
+                    <span>Set Up Free</span>
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+                <p class="text-sm text-gray-500 mt-4">No credit card required • Generous free plan</p>
+            </div>
+            
+            <!-- Social Proof / Trust Indicators -->
+            <div class="text-center">
+                <p class="text-gray-500 text-sm mb-4">Trusted by accounting professionals worldwide</p>
+                <div class="flex justify-center items-center space-x-8 opacity-60">
+                    <i class="fas fa-certificate text-2xl"></i>
+                    <i class="fas fa-lock text-2xl"></i>
+                    <i class="fas fa-award text-2xl"></i>
+                    <i class="fas fa-star text-2xl"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
