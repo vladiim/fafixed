@@ -47,6 +47,7 @@
         <!-- Account Selection Form -->
         <form method="post" action="{% url 'import_accounts' %}" data-controller="account-dropdown" class="space-y-6">
             {% csrf_token %}
+            <input type="hidden" name="integration_id" value="{{ integration.id }}">
             
             <div class="bg-white rounded-lg border border-gray-200">
                 <div class="px-6 py-4 border-b border-gray-200">
@@ -71,6 +72,7 @@
                             {% for account in accounts %}
                             <div data-action="click->account-dropdown#toggleAccount"
                                  data-account-name="{{ account.name }}"
+                                 data-account-id="{{ account.id }}"
                                  data-account-org="{{ account.org }}"
                                  class="flex items-center p-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0">
                                 <div class="flex items-center flex-1">
@@ -81,7 +83,7 @@
                                         <div class="flex items-center justify-between">
                                             <div>
                                                 <h4 class="font-medium text-brand-black">{{ account.name }}</h4>
-                                                <p class="text-sm text-gray-600">{{ account.org }}</p>
+                                                <p class="text-sm text-gray-600">{{ account.code }} - {{ account.type }}</p>
                                             </div>
                                             <div class="text-right text-sm text-gray-500">
                                                 <i class="fab fa-xero text-blue-600 mr-1"></i>

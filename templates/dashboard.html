@@ -66,10 +66,23 @@
                                 <span class="font-medium text-brand-black text-sm">{{ integration.organization_name }}</span>
                                 <i class="fab fa-xero text-blue-600 text-sm"></i>
                             </div>
-                            <p class="text-xs text-gray-600">{{ integration.account_name }}</p>
-                            <div class="flex items-center mt-2">
-                                <div class="w-2 h-2 bg-brand-green rounded-full mr-2"></div>
-                                <span class="text-xs text-gray-500">{{ integration.issues.count }} issues</span>
+                            <p class="text-xs text-gray-600">{{ integration.external_account_name }}</p>
+                            <div class="flex items-center justify-between mt-2">
+                                {% if integration.has_selected_accounts %}
+                                    <div class="flex items-center">
+                                        <div class="w-2 h-2 bg-brand-green rounded-full mr-2"></div>
+                                        <span class="text-xs text-gray-500">{{ integration.selected_accounts_count }} accounts</span>
+                                    </div>
+                                    <span class="text-xs text-gray-500">{{ integration.issues.count }} issues</span>
+                                {% else %}
+                                    <div class="flex items-center">
+                                        <div class="w-2 h-2 bg-orange-400 rounded-full mr-2"></div>
+                                        <span class="text-xs text-orange-600">No accounts selected</span>
+                                    </div>
+                                    <a href="{% url 'xero_accounts' integration.id %}" class="text-xs text-brand-black hover:underline font-medium">
+                                        Select accounts
+                                    </a>
+                                {% endif %}
                             </div>
                         </div>
                         {% empty %}

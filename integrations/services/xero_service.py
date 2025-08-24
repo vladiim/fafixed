@@ -57,7 +57,7 @@ class XeroIntegrationService(BaseIntegrationService):
             )
             
             # Exchange code for token
-            oauth2_token.generate_access_token(
+            oauth2_token.fetch_access_token(
                 code=auth_code,
                 redirect_uri=self.config['redirect_uri']
             )
@@ -171,6 +171,72 @@ class XeroIntegrationService(BaseIntegrationService):
         except Exception as e:
             return {'success': False, 'error': str(e)}
     
+    def get_accounts(self) -> List[Dict[str, Any]]:
+        """Fetch chart of accounts from Xero"""
+        credentials = self.get_credentials()
+        if not credentials:
+            raise Exception("No credentials available")
+        
+        # Auto-refresh if needed
+        if credentials.expires_soon():
+            if not self.refresh_token():
+                raise Exception("Failed to refresh token")
+            credentials.refresh_from_db()
+        
+        try:
+            oauth2_token = OAuth2Token(
+                client_id=self.config['client_id'],
+                client_secret=self.config['client_secret']
+            )
+            oauth2_token.access_token = credentials.access_token
+            
+            api_client = self._create_api_client(oauth2_token)
+            accounting_api = AccountingApi(api_client)
+            
+            # Fetch accounts
+            accounts_response = accounting_api.get_accounts(
+                tenant_id=self.integration.external_account_id
+            )
+            
+            accounts = []
+            for account in accounts_response.accounts:
+                accounts.append({
+                    'id': account.account_id,
+                    'name': account.name,
+                    'code': account.code,
+                    'type': account.type.value if account.type else None,
+                    'account_class': account.account_class.value if account.account_class else None,
+                    'is_system_account': account.system_account,
+                    'enable_payments_to_account': account.enable_payments_to_account,
+                    'show_in_expense_claims': account.show_in_expense_claims,
+                    'description': account.description,
+                    'tax_type': account.tax_type,
+                    'currency_code': account.currency_code,
+                    'org': self.integration.organization_name
+                })
+            
+            return accounts
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch Xero accounts: {e}")
+            raise Exception(f"Failed to fetch accounts: {str(e)}")
+    
+    def save_selected_accounts(self, selected_account_ids: List[str]) -> None:
+        """Save selected account IDs to integration config"""
+        # Update config with selected accounts
+        config = self.integration.config.copy()
+        config['selected_accounts'] = selected_account_ids
+        config['accounts_selected_at'] = timezone.now().isoformat()
+        
+        self.integration.config = config
+        self.integration.save()
+        
+        logger.info(f"Saved {len(selected_account_ids)} selected accounts for integration {self.integration.id}")
+    
+    def get_selected_accounts(self) -> List[str]:
+        """Get list of selected account IDs from config"""
+        return self.integration.config.get('selected_accounts', [])
+
     def sync_data(self, sync_type: str = 'incremental') -> IntegrationSync:
         """Sync data from Xero"""
         sync_record = self.create_sync_record(sync_type)

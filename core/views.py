@@ -84,6 +84,7 @@ class CustomLoginView(LoginView):
 @login_required
 def dashboard(request):
     from integrations.models import Integration, Issue
+    from integrations.services.base import IntegrationServiceRegistry
     
     # Get user's current account
     current_account = None
@@ -91,14 +92,30 @@ def dashboard(request):
         current_account = request.user.profile.current_account
     
     if current_account:
-        integrations = Integration.objects.filter(account=current_account, status='active')
+        integrations = Integration.objects.filter(account=current_account).exclude(status='revoked')
+        
+        # Enhance integrations with selected account info
+        enhanced_integrations = []
+        for integration in integrations:
+            enhanced_integration = integration
+            enhanced_integration.selected_accounts_count = 0
+            enhanced_integration.has_selected_accounts = False
+            
+            # Get selected accounts from config
+            selected_accounts = integration.config.get('selected_accounts', [])
+            if selected_accounts:
+                enhanced_integration.selected_accounts_count = len(selected_accounts)
+                enhanced_integration.has_selected_accounts = True
+            
+            enhanced_integrations.append(enhanced_integration)
+        
         all_issues = Issue.objects.filter(integration__account=current_account, status='open')
     else:
-        integrations = Integration.objects.none()
+        enhanced_integrations = []
         all_issues = Issue.objects.none()
     
     context = {
-        'integrations': integrations,
+        'integrations': enhanced_integrations,
         'issues': all_issues,
         'total_issues': all_issues.count(),
         'critical_issues': all_issues.filter(severity='critical').count(),

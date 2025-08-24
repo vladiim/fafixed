@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.http import JsonResponse
 from .models import Integration, Issue, IntegrationProvider
 from .managers import IntegrationManager
+from .services.base import IntegrationServiceRegistry
 from core.models import Account
 from . import services  # Import services to ensure registration
 import uuid
@@ -103,11 +104,9 @@ def xero_callback(request):
         result = IntegrationManager.complete_oauth_flow(integration, auth_code, state=state)
         
         if result.get('success'):
-            # Create mock issues for this integration (for demo purposes)
-            create_mock_issues(integration)
-            
             messages.success(request, f"Successfully connected to Xero: {result['organization_name']}")
-            return redirect('dashboard')
+            # Redirect to account selection instead of dashboard
+            return redirect('xero_accounts', integration_id=integration.id)
         else:
             messages.error(request, "Failed to complete Xero authentication")
             return redirect('dashboard')
@@ -161,6 +160,83 @@ def revoke_integration(request, integration_id):
         messages.error(request, f"Failed to revoke integration: {str(e)}")
     
     return redirect('dashboard')
+
+
+@login_required
+def xero_accounts(request, integration_id):
+    """Display Xero accounts for selection"""
+    try:
+        integration = get_object_or_404(
+            Integration, 
+            id=integration_id,
+            account__account_users__user=request.user,
+            provider__name='xero'
+        )
+        
+        # Check if integration has completed OAuth (has credentials)
+        if not hasattr(integration, 'credentials'):
+            messages.error(request, "Integration not properly connected. Please reconnect to Xero.")
+            return redirect('dashboard')
+        
+        # Get the service for this integration
+        service = IntegrationServiceRegistry.get_service(integration)
+        
+        # Fetch accounts from Xero
+        accounts = service.get_accounts()
+        
+        context = {
+            'integration': integration,
+            'accounts': accounts
+        }
+        
+        return render(request, 'integrations/xero_accounts.html', context)
+        
+    except Exception as e:
+        messages.error(request, f"Failed to fetch Xero accounts: {str(e)}")
+        return redirect('dashboard')
+
+
+@login_required  
+def import_accounts(request):
+    """Handle account selection and import"""
+    if request.method != 'POST':
+        return redirect('dashboard')
+    
+    try:
+        # Get selected account IDs from form data
+        selected_accounts = request.POST.getlist('selected_accounts')
+        
+        if not selected_accounts:
+            messages.error(request, "Please select at least one account to import")
+            return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
+        
+        # Get integration from form or session
+        integration_id = request.POST.get('integration_id')
+        if not integration_id:
+            messages.error(request, "Invalid request")
+            return redirect('dashboard')
+        
+        integration = get_object_or_404(
+            Integration,
+            id=integration_id,
+            account__account_users__user=request.user,
+            status='active'
+        )
+        
+        # Save selected accounts using the service
+        service = IntegrationServiceRegistry.get_service(integration)
+        service.save_selected_accounts(selected_accounts)
+        
+        # Create mock issues for selected accounts
+        create_mock_issues(integration)
+        
+        messages.success(request, f"Successfully imported {len(selected_accounts)} accounts for analysis")
+        return redirect('dashboard')
+        
+    except Exception as e:
+        messages.error(request, f"Failed to import accounts: {str(e)}")
+        return redirect('dashboard')
+
 
 def create_mock_issues(integration):
     """Create some mock issues for demonstration"""

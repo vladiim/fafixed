@@ -46,21 +46,21 @@ class AccountDropdownController extends Controller {
     event.preventDefault()
     
     const accountElement = event.currentTarget
+    const accountId = accountElement.dataset.accountId
     const accountName = accountElement.dataset.accountName
     const accountOrg = accountElement.dataset.accountOrg
-    const accountKey = `${accountName}|${accountOrg}`
     const checkbox = accountElement.querySelector('.account-checkbox')
     const checkIcon = checkbox.querySelector('i')
     
-    if (this.selectedAccounts.has(accountKey)) {
+    if (this.selectedAccounts.has(accountId)) {
       // Deselect
-      this.selectedAccounts.delete(accountKey)
+      this.selectedAccounts.delete(accountId)
       checkbox.classList.remove('bg-brand-black', 'border-brand-black')
       checkbox.classList.add('border-gray-300')
       checkIcon.classList.add('hidden')
     } else {
       // Select
-      this.selectedAccounts.add(accountKey)
+      this.selectedAccounts.add(accountId)
       checkbox.classList.add('bg-brand-black', 'border-brand-black')
       checkbox.classList.remove('border-gray-300')
       checkIcon.classList.remove('hidden')
@@ -100,8 +100,12 @@ class AccountDropdownController extends Controller {
       this.selectedAccountsTarget.classList.remove('hidden')
       
       this.selectedListTarget.innerHTML = ''
-      this.selectedAccounts.forEach(accountKey => {
-        const [name, org] = accountKey.split('|')
+      this.selectedAccounts.forEach(accountId => {
+        // Find the account element to get name and org
+        const accountElement = this.element.querySelector(`[data-account-id="${accountId}"]`)
+        const name = accountElement.dataset.accountName
+        const org = accountElement.dataset.accountOrg
+        
         const selectedItem = document.createElement('div')
         selectedItem.className = 'flex items-center justify-between p-3 bg-gray-50 rounded-lg'
         selectedItem.innerHTML = `
@@ -109,7 +113,7 @@ class AccountDropdownController extends Controller {
             <h5 class="font-medium text-brand-black text-sm">${name}</h5>
             <p class="text-xs text-gray-600">${org}</p>
           </div>
-          <button type="button" data-account-key="${accountKey}" data-action="click->account-dropdown#removeAccount" class="text-gray-400 hover:text-brand-red">
+          <button type="button" data-account-id="${accountId}" data-action="click->account-dropdown#removeAccount" class="text-gray-400 hover:text-brand-red">
             <i class="fas fa-times"></i>
           </button>
         `
@@ -120,11 +124,11 @@ class AccountDropdownController extends Controller {
 
   updateHiddenInputs() {
     this.hiddenInputsTarget.innerHTML = ''
-    this.selectedAccounts.forEach(accountKey => {
+    this.selectedAccounts.forEach(accountId => {
       const input = document.createElement('input')
       input.type = 'hidden'
-      input.name = 'accounts'
-      input.value = accountKey
+      input.name = 'selected_accounts'
+      input.value = accountId
       this.hiddenInputsTarget.appendChild(input)
     })
   }
@@ -144,12 +148,12 @@ class AccountDropdownController extends Controller {
 
   removeAccount(event) {
     event.preventDefault()
-    const accountKey = event.currentTarget.dataset.accountKey
+    const accountId = event.currentTarget.dataset.accountId
     
-    this.selectedAccounts.delete(accountKey)
+    this.selectedAccounts.delete(accountId)
     
     // Update the visual state of the checkbox in dropdown
-    const accountElement = this.element.querySelector(`[data-account-name="${accountKey.split('|')[0]}"][data-account-org="${accountKey.split('|')[1]}"]`)
+    const accountElement = this.element.querySelector(`[data-account-id="${accountId}"]`)
     if (accountElement) {
       const checkbox = accountElement.querySelector('.account-checkbox')
       const checkIcon = checkbox.querySelector('i')
