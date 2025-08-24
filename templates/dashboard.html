@@ -76,7 +76,7 @@
                         <div class="text-center p-4 text-gray-500">
                             <i class="fas fa-plug text-2xl mb-2"></i>
                             <p class="text-sm">No accounts connected</p>
-                            <a href="{% url 'xero_connect' %}" class="text-brand-black hover:underline text-sm font-medium">
+                            <a href="{% url 'xero_connect' %}" class="text-brand-black hover:underline text-sm font-medium" data-turbo="false">
                                 Connect Xero
                             </a>
                         </div>
@@ -178,7 +178,7 @@
                 </div>
                 <h3 class="font-heading font-semibold text-brand-black text-xl mb-2">All Clean!</h3>
                 <p class="text-gray-600 mb-6">No data quality issues found in your connected accounts.</p>
-                <a href="{% url 'xero_connect' %}" class="btn-primary">
+                <a href="{% url 'xero_connect' %}" class="btn-primary" data-turbo="false">
                     <i class="fas fa-plus mr-2"></i>
                     Connect Another Account
                 </a>

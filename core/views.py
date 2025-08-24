@@ -84,8 +84,18 @@ class CustomLoginView(LoginView):
 @login_required
 def dashboard(request):
     from integrations.models import Integration, Issue
-    integrations = Integration.objects.filter(user=request.user, is_active=True)
-    all_issues = Issue.objects.filter(integration__user=request.user, status='open')
+    
+    # Get user's current account
+    current_account = None
+    if hasattr(request.user, 'profile') and request.user.profile.current_account:
+        current_account = request.user.profile.current_account
+    
+    if current_account:
+        integrations = Integration.objects.filter(account=current_account, status='active')
+        all_issues = Issue.objects.filter(integration__account=current_account, status='open')
+    else:
+        integrations = Integration.objects.none()
+        all_issues = Issue.objects.none()
     
     context = {
         'integrations': integrations,
