@@ -83,8 +83,10 @@ class CustomLoginView(LoginView):
 
 @login_required
 def dashboard(request):
-    from integrations.models import Integration, Issue
+    from integrations.models import Integration, Issue, TransactionData
     from integrations.services.base import IntegrationServiceRegistry
+    from django.db.models import Sum, Count, Q
+    from datetime import datetime, timedelta
     
     # Get user's current account
     current_account = None
@@ -92,27 +94,65 @@ def dashboard(request):
         current_account = request.user.profile.current_account
     
     if current_account:
-        integrations = Integration.objects.filter(account=current_account).exclude(status='revoked')
+        # Only show active integrations, or if none exist, show the most recent non-revoked one
+        active_integrations = Integration.objects.filter(
+            account=current_account, 
+            status='active'
+        ).order_by('-created_at')
         
-        # Enhance integrations with selected account info
+        if active_integrations.exists():
+            integrations = active_integrations
+        else:
+            # Fallback to most recent non-revoked integration if no active ones
+            integrations = Integration.objects.filter(
+                account=current_account
+            ).exclude(status='revoked').order_by('-created_at')[:1]
+        
+        # Enhance integrations with selected account info and transaction stats
         enhanced_integrations = []
         for integration in integrations:
             enhanced_integration = integration
             enhanced_integration.selected_accounts_count = 0
             enhanced_integration.has_selected_accounts = False
             
-            # Get selected accounts from config
-            selected_accounts = integration.config.get('selected_accounts', [])
+            # Get selected organizations from config (fallback to selected_accounts for backwards compatibility)
+            selected_accounts = integration.config.get('selected_organizations', integration.config.get('selected_accounts', []))
             if selected_accounts:
                 enhanced_integration.selected_accounts_count = len(selected_accounts)
                 enhanced_integration.has_selected_accounts = True
             
+            # Get transaction stats
+            transaction_stats = TransactionData.objects.filter(
+                integration=integration
+            ).aggregate(
+                total_transactions=Count('id'),
+                total_amount=Sum('amount'),
+                recent_transactions=Count('id', filter=Q(
+                    date__gte=datetime.now().date() - timedelta(days=30)
+                ))
+            )
+            enhanced_integration.transaction_count = transaction_stats['total_transactions'] or 0
+            enhanced_integration.recent_transaction_count = transaction_stats['recent_transactions'] or 0
+            
+            # Check if integration needs reconnection (no refresh token for active integration)
+            enhanced_integration.needs_reconnect = False
+            if integration.status == 'active' and hasattr(integration, 'credentials'):
+                if not integration.credentials.refresh_token:
+                    enhanced_integration.needs_reconnect = True
+            
             enhanced_integrations.append(enhanced_integration)
         
         all_issues = Issue.objects.filter(integration__account=current_account, status='open')
+        
+        # Get recent transactions across all integrations
+        recent_transactions = TransactionData.objects.filter(
+            integration__account=current_account
+        ).select_related('integration').order_by('-date', '-created_at')[:10]
+        
     else:
         enhanced_integrations = []
         all_issues = Issue.objects.none()
+        recent_transactions = []
     
     context = {
         'integrations': enhanced_integrations,
@@ -120,5 +160,6 @@ def dashboard(request):
         'total_issues': all_issues.count(),
         'critical_issues': all_issues.filter(severity='critical').count(),
         'high_issues': all_issues.filter(severity='high').count(),
+        'recent_transactions': recent_transactions,
     }
     return render(request, 'dashboard.html', context)

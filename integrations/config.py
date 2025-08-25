@@ -25,7 +25,7 @@ class XeroConfig(BaseIntegrationConfig):
         self.client_id = os.getenv('XERO_CLIENT_ID')
         self.client_secret = os.getenv('XERO_CLIENT_SECRET')
         self.redirect_uri = self._get_redirect_uri()
-        self.scopes = ['accounting.transactions', 'accounting.contacts', 'accounting.settings']
+        self.scopes = ['accounting.transactions', 'accounting.contacts', 'accounting.settings', 'offline_access']
         super().__init__()
     
     def _get_redirect_uri(self) -> str:

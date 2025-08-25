@@ -167,3 +167,39 @@ LOGGING = {
         },
     },
 }
+
+# Celery Configuration
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_ENABLE_UTC = True
+
+# Celery Beat (periodic tasks) configuration
+CELERY_BEAT_SCHEDULE = {
+    'sync-xero-transactions-daily': {
+        'task': 'integrations.tasks.sync_all_integrations',
+        'schedule': 86400.0,  # Run daily at midnight
+        'options': {'queue': 'sync'},
+        'kwargs': {'sync_type': 'daily'}  # Only get last day's transactions
+    },
+    'cleanup-oauth-states': {
+        'task': 'integrations.tasks.cleanup_expired_oauth_states',
+        'schedule': 86400.0,  # Run daily
+        'options': {'queue': 'cleanup'}
+    },
+    'refresh-expiring-tokens': {
+        'task': 'integrations.tasks.refresh_expiring_tokens',
+        'schedule': 1800.0,  # Run every 30 minutes
+        'options': {'queue': 'auth'}
+    },
+}
+
+# Celery routing
+CELERY_TASK_ROUTES = {
+    'integrations.tasks.sync_*': {'queue': 'sync'},
+    'integrations.tasks.cleanup_*': {'queue': 'cleanup'},
+    'integrations.tasks.refresh_*': {'queue': 'auth'},
+}

@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+
+{% block title %}Transactions - {{ integration.organization_name }} - FAFixed{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50">
+    <!-- Top Navigation -->
+    <nav class="bg-brand-white border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <h1 class="text-2xl font-heading font-bold text-brand-black">
+                        FA<span class="text-brand-green">Fixed</span>
+                    </h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="text-sm text-gray-600">{{ user.email }}</span>
+                    <a href="{% url 'logout' %}" class="text-sm text-gray-500 hover:text-brand-black">
+                        <i class="fas fa-sign-out-alt mr-1"></i>
+                        Logout
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-3xl font-heading font-bold text-brand-black mb-2">Transactions</h2>
+                    <p class="text-gray-600">{{ integration.organization_name }} - {{ total_transactions }} total transactions</p>
+                </div>
+                <a href="{% url 'dashboard' %}" class="btn-secondary">
+                    <i class="fas fa-arrow-left mr-2"></i>
+                    Back to Dashboard
+                </a>
+            </div>
+        </div>
+
+        <!-- Transactions Table -->
+        {% if page_obj.object_list %}
+        <div class="bg-brand-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-heading font-semibold text-brand-black">Transaction History</h3>
+                    <span class="text-sm text-gray-500">
+                        Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ total_transactions }}
+                    </span>
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Date
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Description
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Type
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Amount
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Status
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Contact
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for transaction in page_obj %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {{ transaction.date|date:"M j, Y" }}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="text-sm font-medium text-gray-900">
+                                    {% if transaction.description %}
+                                        {{ transaction.description|truncatechars:50 }}
+                                    {% else %}
+                                        <span class="text-gray-400">No description</span>
+                                    {% endif %}
+                                </div>
+                                {% if transaction.reference %}
+                                <div class="text-sm text-gray-500">Ref: {{ transaction.reference }}</div>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                {% if transaction.transaction_type == 'spend' %}
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                        <i class="fas fa-arrow-down mr-1"></i>
+                                        Spend
+                                    </span>
+                                {% elif transaction.transaction_type == 'receive' %}
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        <i class="fas fa-arrow-up mr-1"></i>
+                                        Receive
+                                    </span>
+                                {% elif transaction.transaction_type == 'bank_transfer' %}
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        <i class="fas fa-exchange-alt mr-1"></i>
+                                        Transfer
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                        {{ transaction.transaction_type|title }}
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                {% if transaction.transaction_type == 'spend' %}
+                                    <span class="text-red-600">-{{ transaction.currency_code }} {{ transaction.amount|floatformat:2 }}</span>
+                                {% else %}
+                                    <span class="text-green-600">{{ transaction.currency_code }} {{ transaction.amount|floatformat:2 }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                    {{ transaction.status }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                {% if transaction.contact_name %}
+                                    {{ transaction.contact_name }}
+                                {% else %}
+                                    <span class="text-gray-400">—</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            {% if page_obj.has_other_pages %}
+            <div class="px-6 py-4 border-t border-gray-200">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center">
+                        <p class="text-sm text-gray-700">
+                            Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ total_transactions }} results
+                        </p>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        {% if page_obj.has_previous %}
+                            <a href="?page=1" class="px-3 py-1 border border-gray-300 text-gray-500 bg-white hover:bg-gray-50 rounded-md text-sm">
+                                First
+                            </a>
+                            <a href="?page={{ page_obj.previous_page_number }}" class="px-3 py-1 border border-gray-300 text-gray-500 bg-white hover:bg-gray-50 rounded-md text-sm">
+                                Previous
+                            </a>
+                        {% endif %}
+                        
+                        <span class="px-3 py-1 bg-brand-black text-white rounded-md text-sm">
+                            {{ page_obj.number }}
+                        </span>
+                        
+                        {% if page_obj.has_next %}
+                            <a href="?page={{ page_obj.next_page_number }}" class="px-3 py-1 border border-gray-300 text-gray-500 bg-white hover:bg-gray-50 rounded-md text-sm">
+                                Next
+                            </a>
+                            <a href="?page={{ page_obj.paginator.num_pages }}" class="px-3 py-1 border border-gray-300 text-gray-500 bg-white hover:bg-gray-50 rounded-md text-sm">
+                                Last
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <!-- Empty state -->
+        <div class="bg-brand-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+            <div class="mx-auto w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+                <i class="fas fa-receipt text-gray-400 text-3xl"></i>
+            </div>
+            <h3 class="font-heading font-semibold text-brand-black text-xl mb-2">No Transactions Found</h3>
+            <p class="text-gray-600 mb-6">No transaction data available for this integration.</p>
+            <a href="{% url 'sync_integration' integration.prefix_id %}" class="btn-primary">
+                <i class="fas fa-sync mr-2"></i>
+                Sync Transactions
+            </a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

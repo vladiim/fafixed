@@ -68,19 +68,40 @@
                             </div>
                             <p class="text-xs text-gray-600">{{ integration.external_account_name }}</p>
                             <div class="flex items-center justify-between mt-2">
-                                {% if integration.has_selected_accounts %}
+                                {% if integration.status == 'error' %}
+                                    <div class="flex items-center">
+                                        <div class="w-2 h-2 bg-brand-red rounded-full mr-2"></div>
+                                        <span class="text-xs text-red-600">Connection error</span>
+                                    </div>
+                                    <a href="{% url 'xero_connect' %}" class="text-xs text-brand-red hover:underline font-medium">
+                                        Reconnect
+                                    </a>
+                                {% elif integration.has_selected_accounts %}
                                     <div class="flex items-center">
                                         <div class="w-2 h-2 bg-brand-green rounded-full mr-2"></div>
-                                        <span class="text-xs text-gray-500">{{ integration.selected_accounts_count }} accounts</span>
+                                        <span class="text-xs text-gray-500">{{ integration.selected_accounts_count }} client organisations</span>
                                     </div>
-                                    <span class="text-xs text-gray-500">{{ integration.issues.count }} issues</span>
+                                    <div class="flex items-center space-x-2">
+                                        {% if integration.transaction_count > 0 %}
+                                        <a href="{% url 'transaction_list' integration.prefix_id %}" class="text-xs text-brand-black hover:underline font-medium">
+                                            {{ integration.transaction_count }} transactions
+                                        </a>
+                                        {% else %}
+                                        <span class="text-xs text-gray-500">{{ integration.transaction_count }} transactions</span>
+                                        {% endif %}
+                                        {% if integration.needs_reconnect %}
+                                        <a href="{% url 'xero_connect' %}" class="text-xs text-orange-600 hover:underline font-medium">
+                                            Reconnect
+                                        </a>
+                                        {% endif %}
+                                    </div>
                                 {% else %}
                                     <div class="flex items-center">
                                         <div class="w-2 h-2 bg-orange-400 rounded-full mr-2"></div>
-                                        <span class="text-xs text-orange-600">No accounts selected</span>
+                                        <span class="text-xs text-orange-600">No client organisations selected</span>
                                     </div>
-                                    <a href="{% url 'xero_accounts' integration.id %}" class="text-xs text-brand-black hover:underline font-medium">
-                                        Select accounts
+                                    <a href="{% url 'xero_chart_accounts' integration.prefix_id %}" class="text-xs text-brand-black hover:underline font-medium">
+                                        Select client organisations
                                     </a>
                                 {% endif %}
                             </div>

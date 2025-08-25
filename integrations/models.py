@@ -1,8 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import User
-from core.models import Account
+from django.utils import timezone
+from core.models import Account, PrefixIdMixin
 from encrypted_model_fields.fields import EncryptedTextField, EncryptedCharField
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta
 import json
 
 class IntegrationProvider(models.Model):
@@ -27,7 +28,7 @@ class IntegrationProvider(models.Model):
         return self.display_name
 
 
-class Integration(models.Model):
+class Integration(models.Model, PrefixIdMixin):
     """Integration model linking organization accounts to external provider accounts"""
     
     STATUS_CHOICES = [
@@ -198,3 +199,168 @@ class Issue(models.Model):
     
     class Meta:
         ordering = ['-last_seen']
+
+
+class TransactionData(models.Model):
+    """Stores transaction data from external systems
+    Multi-tenanted through: TransactionData → Integration → Account"""
+    
+    TRANSACTION_TYPES = [
+        ('spend', 'Spend'),
+        ('receive', 'Receive'),
+        ('bank_transfer', 'Bank Transfer'),
+        ('other', 'Other'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('authorised', 'Authorised'),
+        ('deleted', 'Deleted'), 
+        ('draft', 'Draft'),
+        ('submitted', 'Submitted'),
+        ('pending', 'Pending'),
+    ]
+    
+    # Multi-tenant relationship via Integration
+    integration = models.ForeignKey(Integration, on_delete=models.CASCADE, related_name='transactions')
+    
+    # External system identifiers
+    external_transaction_id = models.CharField(max_length=255, db_index=True)
+    external_account_id = models.CharField(max_length=255, db_index=True)  # Xero bank account ID
+    
+    # Transaction details
+    transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPES)
+    date = models.DateField(db_index=True)
+    reference = models.CharField(max_length=500, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+    
+    # Financial details
+    amount = models.DecimalField(max_digits=15, decimal_places=2)
+    currency_code = models.CharField(max_length=3, default='USD')
+    
+    # Status and reconciliation
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, db_index=True)
+    is_reconciled = models.BooleanField(default=False, db_index=True)
+    
+    # Contact/Supplier information
+    contact_name = models.CharField(max_length=500, blank=True, null=True)
+    contact_external_id = models.CharField(max_length=255, blank=True, null=True)
+    
+    # External system URL - direct link to transaction in Xero
+    external_url = models.URLField(max_length=500, blank=True, null=True, 
+                                   help_text="Direct link to view this transaction in Xero")
+    
+    # Raw data from external system  
+    raw_data = models.JSONField(default=dict, blank=True)
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    last_synced_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['integration', 'external_transaction_id']
+        ordering = ['-date', '-created_at']
+        indexes = [
+            models.Index(fields=['integration', 'date']),
+            models.Index(fields=['integration', 'status']),
+            models.Index(fields=['integration', 'is_reconciled']),
+            models.Index(fields=['external_account_id', 'date']),
+        ]
+    
+    def __str__(self):
+        return f"{self.reference or self.external_transaction_id} - {self.amount} {self.currency_code}"
+    
+    @property
+    def account(self):
+        """Get the account this transaction belongs to (for convenience)"""
+        return self.integration.account
+
+
+class OAuthState(models.Model):
+    """Secure OAuth state tokens to prevent CSRF attacks"""
+    
+    integration = models.ForeignKey(Integration, on_delete=models.CASCADE, related_name='oauth_states')
+    state_token = models.CharField(max_length=128, unique=True, db_index=True)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    used_at = models.DateTimeField(null=True, blank=True)
+    is_used = models.BooleanField(default=False)
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['state_token', 'is_used']),
+            models.Index(fields=['created_at']),
+        ]
+    
+    def __str__(self):
+        return f"OAuth State for {self.integration.organization_name} - {self.state_token[:16]}..."
+    
+    def mark_as_used(self):
+        """Mark this state token as used"""
+        self.is_used = True
+        self.used_at = timezone.now()
+        self.save()
+    
+    @classmethod
+    def create_state_token(cls, integration: Integration, user) -> 'OAuthState':
+        """Create a new secure state token"""
+        import secrets
+        import string
+        
+        # Generate cryptographically secure random token
+        alphabet = string.ascii_letters + string.digits
+        state_token = ''.join(secrets.choice(alphabet) for _ in range(64))
+        
+        return cls.objects.create(
+            integration=integration,
+            state_token=state_token,
+            created_by=user
+        )
+    
+    @classmethod
+    def cleanup_expired_states(cls, hours=24):
+        """Clean up expired OAuth states older than specified hours"""
+        from datetime import timedelta
+        cutoff_time = timezone.now() - timedelta(hours=hours)
+        expired_states = cls.objects.filter(created_at__lt=cutoff_time)
+        count = expired_states.count()
+        expired_states.delete()
+        return count
+
+
+class TransactionLineItem(models.Model):
+    """Line items for transactions (for detailed breakdown)
+    Multi-tenanted through: TransactionLineItem → TransactionData → Integration → Account"""
+    
+    transaction = models.ForeignKey(TransactionData, on_delete=models.CASCADE, related_name='line_items')
+    
+    # Line item details
+    description = models.TextField(blank=True, null=True)
+    quantity = models.DecimalField(max_digits=10, decimal_places=4, default=1)
+    unit_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    line_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    
+    # Tax information
+    tax_type = models.CharField(max_length=100, blank=True, null=True)
+    tax_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    
+    # Account classification
+    account_code = models.CharField(max_length=20, blank=True, null=True)
+    account_name = models.CharField(max_length=200, blank=True, null=True)
+    
+    # External references
+    external_line_item_id = models.CharField(max_length=255, blank=True, null=True)
+    
+    # Raw data
+    raw_data = models.JSONField(default=dict, blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['id']
+
+
+# Apply prefix_id to Integration model
+Integration = Integration.has_prefix_id('int')

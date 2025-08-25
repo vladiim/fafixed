@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}Select Accounts - FAFixed{% endblock %}
+{% block title %}Select Client Organisations - FAFixed{% endblock %}
 
 {% block content %}
 <div class="min-h-screen bg-brand-white py-12 px-4 sm:px-6 lg:px-8">
@@ -13,10 +13,10 @@
                 </h1>
             </a>
             <h2 class="text-2xl font-heading font-semibold text-brand-black mb-2">
-                Select Xero Accounts
+                Select Client Organisations
             </h2>
             <p class="text-gray-600">
-                Choose which Xero accounts you'd like to analyze for data issues
+                Choose which client organisations you'd like to sync and analyse for data issues
             </p>
         </div>
 
@@ -45,14 +45,14 @@
         </div>
 
         <!-- Account Selection Form -->
-        <form method="post" action="{% url 'import_accounts' %}" data-controller="account-dropdown" class="space-y-6">
+        <form method="post" action="{% url 'import_chart_accounts' %}" data-controller="account-dropdown" class="space-y-6">
             {% csrf_token %}
             <input type="hidden" name="integration_id" value="{{ integration.id }}">
             
             <div class="bg-white rounded-lg border border-gray-200">
                 <div class="px-6 py-4 border-b border-gray-200">
-                    <h3 class="font-heading font-semibold text-brand-black">Available Accounts</h3>
-                    <p class="text-sm text-gray-600 mt-1">Select accounts to import from the dropdown</p>
+                    <h3 class="font-heading font-semibold text-brand-black">Available Client Organisations</h3>
+                    <p class="text-sm text-gray-600 mt-1">Select client organisations from your Xero access to import</p>
                 </div>
                 
                 <div class="p-6">
@@ -62,18 +62,18 @@
                                 data-action="click->account-dropdown#toggleDropdown"
                                 data-account-dropdown-target="dropdownButton"
                                 class="w-full flex items-center justify-between p-4 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 focus:ring-2 focus:ring-brand-black focus:border-transparent">
-                            <span data-account-dropdown-target="buttonText" class="text-gray-500">Select accounts to import...</span>
+                            <span data-account-dropdown-target="buttonText" class="text-gray-500">Select client organisations to import...</span>
                             <i data-account-dropdown-target="chevron" class="fas fa-chevron-down text-gray-400 transition-transform duration-200"></i>
                         </button>
                         
                         <!-- Dropdown Menu -->
                         <div data-account-dropdown-target="dropdown" 
                              class="hidden absolute z-10 w-full mt-2 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
-                            {% for account in accounts %}
+                            {% for organisation in organizations %}
                             <div data-action="click->account-dropdown#toggleAccount"
-                                 data-account-name="{{ account.name }}"
-                                 data-account-id="{{ account.id }}"
-                                 data-account-org="{{ account.org }}"
+                                 data-account-name="{{ organisation.name }}"
+                                 data-account-id="{{ organisation.tenant_id }}"
+                                 data-account-org="{{ organisation.legal_name }}"
                                  class="flex items-center p-4 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0">
                                 <div class="flex items-center flex-1">
                                     <div class="w-4 h-4 border border-gray-300 rounded mr-4 flex items-center justify-center account-checkbox">
@@ -82,8 +82,8 @@
                                     <div class="flex-1">
                                         <div class="flex items-center justify-between">
                                             <div>
-                                                <h4 class="font-medium text-brand-black">{{ account.name }}</h4>
-                                                <p class="text-sm text-gray-600">{{ account.code }} - {{ account.type }}</p>
+                                                <h4 class="font-medium text-brand-black">{{ organisation.name }}</h4>
+                                                <p class="text-sm text-gray-600">{{ organisation.legal_name }}{% if organisation.country_code %} - {{ organisation.country_code }}{% endif %}</p>
                                             </div>
                                             <div class="text-right text-sm text-gray-500">
                                                 <i class="fab fa-xero text-blue-600 mr-1"></i>
@@ -99,7 +99,7 @@
                     
                     <!-- Selected accounts display -->
                     <div data-account-dropdown-target="selectedAccounts" class="hidden mt-4">
-                        <h4 class="font-medium text-brand-black mb-2">Selected Accounts:</h4>
+                        <h4 class="font-medium text-brand-black mb-2">Selected Client Organisations:</h4>
                         <div data-account-dropdown-target="selectedList" class="space-y-2"></div>
                     </div>
                     
@@ -116,7 +116,7 @@
                 </a>
                 <button type="submit" data-account-dropdown-target="submitButton" 
                         class="btn-primary opacity-50 cursor-not-allowed" disabled>
-                    Import Selected Accounts
+                    Import Selected Client Organisations
                     <i class="fas fa-arrow-right ml-2"></i>
                 </button>
             </div>

@@ -14,4 +14,6 @@ dependencies = [
     "django-encrypted-model-fields>=0.6.5",
     "cryptography>=45.0.6",
     "celery>=5.5.3",
+    "redis>=5.0.0",
+    "requests>=2.31.0",
 ]

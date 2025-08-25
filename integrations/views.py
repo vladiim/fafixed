@@ -2,9 +2,11 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
-from .models import Integration, Issue, IntegrationProvider
+from django.core.paginator import Paginator
+from .models import Integration, Issue, IntegrationProvider, TransactionData
 from .managers import IntegrationManager
 from .services.base import IntegrationServiceRegistry
+from .utils import TokenRefreshError
 from core.models import Account
 from . import services  # Import services to ensure registration
 import uuid
@@ -34,33 +36,44 @@ def xero_connect(request):
     logger.info(f"Current account: {current_account.name} (ID: {current_account.id})")
     
     try:
-        # Check if active integration already exists (allow retry for failed/expired ones)
+        # Check if any integration already exists for this account/provider combo
         existing_integration = Integration.objects.filter(
             account=current_account,
-            provider__name='xero',
-            status='active'
+            provider__name='xero'
         ).first()
         
         if existing_integration:
-            logger.info(f"Active Xero integration found: {existing_integration.id}")
-            messages.info(request, "Xero integration already exists for this account.")
-            return redirect('dashboard')
+            if existing_integration.status == 'active':
+                logger.info(f"Active Xero integration found: {existing_integration.id}")
+                messages.info(request, "Xero integration already exists for this account.")
+                return redirect('dashboard')
+            else:
+                # Reuse existing expired/error integration for reconnection
+                logger.info(f"Reusing existing integration for reconnection: {existing_integration.id} (Status: {existing_integration.status})")
+                integration = existing_integration
+                # Reset integration status for reconnection
+                integration.status = 'pending'
+                integration.last_error = None
+                integration.save()
+        else:
+            logger.info("Creating new Xero integration...")
+            # Create new integration
+            integration = IntegrationManager.create_integration(
+                account=current_account,
+                provider_name='xero',
+                created_by=request.user
+            )
         
-        logger.info("Creating new Xero integration...")
+        logger.info(f"Using integration: {integration.id}")
         
-        # Create new integration
-        integration = IntegrationManager.create_integration(
-            account=current_account,
-            provider_name='xero',
-            created_by=request.user
-        )
+        # Create secure OAuth state token
+        from .models import OAuthState
+        oauth_state = OAuthState.create_state_token(integration, request.user)
         
-        logger.info(f"Created integration: {integration.id}")
-        
-        # Generate OAuth URL
+        # Generate OAuth URL with secure state
         auth_url = IntegrationManager.initiate_oauth_flow(
             integration, 
-            state=str(integration.id)
+            state=oauth_state.state_token
         )
         
         logger.info(f"Generated OAuth URL: {auth_url}")
@@ -92,21 +105,40 @@ def xero_callback(request):
         return redirect('dashboard')
     
     try:
-        # Get the integration by state (integration ID)
-        integration = get_object_or_404(Integration, id=state, status='pending')
+        # Validate OAuth state token
+        from .models import OAuthState
+        try:
+            oauth_state = OAuthState.objects.get(
+                state_token=state,
+                is_used=False,
+                created_by=request.user
+            )
+        except OAuthState.DoesNotExist:
+            messages.error(request, "Invalid or expired authentication state")
+            return redirect('dashboard')
         
-        # Verify user has access to this integration
+        integration = oauth_state.integration
+        
+        # Verify integration is still pending
+        if integration.status != 'pending':
+            messages.error(request, "Integration is no longer pending authorization")
+            return redirect('dashboard')
+        
+        # Verify user still has access to this integration
         if not request.user.account_memberships.filter(account=integration.account).exists():
             messages.error(request, "Access denied")
             return redirect('dashboard')
+        
+        # Mark state token as used to prevent replay attacks
+        oauth_state.mark_as_used()
         
         # Complete OAuth flow
         result = IntegrationManager.complete_oauth_flow(integration, auth_code, state=state)
         
         if result.get('success'):
             messages.success(request, f"Successfully connected to Xero: {result['organization_name']}")
-            # Redirect to account selection instead of dashboard
-            return redirect('xero_accounts', integration_id=integration.id)
+            # Redirect to client organisation selection instead of dashboard
+            return redirect('xero_chart_accounts', integration_prefix_id=integration.prefix_id)
         else:
             messages.error(request, "Failed to complete Xero authentication")
             return redirect('dashboard')
@@ -163,51 +195,97 @@ def revoke_integration(request, integration_id):
 
 
 @login_required
-def xero_accounts(request, integration_id):
-    """Display Xero accounts for selection"""
+def xero_chart_accounts(request, integration_prefix_id):
+    """Display Xero Chart of Accounts for selection (bank accounts, revenue accounts, etc.)"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"Xero chart accounts view called for integration {integration_prefix_id} by user {request.user.email}")
+    
     try:
         integration = get_object_or_404(
             Integration, 
-            id=integration_id,
+            prefix_id=integration_prefix_id,
             account__account_users__user=request.user,
             provider__name='xero'
         )
         
+        logger.info(f"Found integration: {integration.id} - {integration.organization_name} (Status: {integration.status})")
+        
         # Check if integration has completed OAuth (has credentials)
         if not hasattr(integration, 'credentials'):
+            logger.error(f"Integration {integration.id} has no credentials")
             messages.error(request, "Integration not properly connected. Please reconnect to Xero.")
             return redirect('dashboard')
         
-        # Get the service for this integration
-        service = IntegrationServiceRegistry.get_service(integration)
+        logger.info(f"Integration has credentials, expires at: {integration.credentials.expires_at}")
         
-        # Fetch accounts from Xero
-        accounts = service.get_accounts()
+        # Get the service for this integration
+        logger.info("Getting integration service...")
+        service = IntegrationServiceRegistry.get_service(integration)
+        logger.info(f"Got service: {service.__class__.__name__}")
+        
+        # Fetch client organizations from Xero
+        logger.info("Fetching client organizations from Xero API...")
+        try:
+            organizations = service.get_organizations()
+            logger.info(f"Successfully fetched {len(organizations)} client organizations from Xero")
+            
+            # Log first few organizations for debugging
+            for i, org in enumerate(organizations[:3]):
+                logger.info(f"Organization {i+1}: {org.get('name', 'NO_NAME')} - Legal: {org.get('legal_name', 'NO_LEGAL')} - Tenant: {org.get('tenant_id', 'NO_TENANT')}")
+            
+            # Auto-select if only one organization available
+            if len(organizations) == 1:
+                logger.info("Only one client organization available, auto-selecting and importing")
+                tenant_id = organizations[0].get('tenant_id')
+                if tenant_id:
+                    try:
+                        service.save_selected_organizations([tenant_id])
+                        messages.success(request, f"Successfully imported client organization: {organizations[0].get('name', 'Unknown Organization')}")
+                        return redirect('dashboard')
+                    except Exception as auto_select_error:
+                        logger.error(f"Failed to auto-select organization: {auto_select_error}")
+                        # Continue to render template if auto-select fails
+                        
+        except Exception as api_error:
+            logger.error(f"Error fetching client organizations from Xero API: {api_error}", exc_info=True)
+            raise
         
         context = {
             'integration': integration,
-            'accounts': accounts
+            'organizations': organizations
         }
         
-        return render(request, 'integrations/xero_accounts.html', context)
+        logger.info(f"Rendering xero_chart_accounts.html template with {len(organizations)} client organizations")
+        return render(request, 'integrations/xero_chart_accounts.html', context)
         
+    except TokenRefreshError as e:
+        logger.error(f"Token refresh failed for integration {integration_prefix_id}: {str(e)}")
+        messages.error(request, "Your Xero connection has expired. Please reconnect to continue.")
+        # Mark integration as needing reconnection
+        integration.status = 'expired'
+        integration.last_error = str(e)
+        integration.save()
+        return redirect('xero_connect')
     except Exception as e:
-        messages.error(request, f"Failed to fetch Xero accounts: {str(e)}")
+        logger.error(f"Failed to fetch Xero client organizations for integration {integration_prefix_id}: {str(e)}", exc_info=True)
+        messages.error(request, f"Failed to fetch Xero client organizations: {str(e)}")
         return redirect('dashboard')
 
 
 @login_required  
-def import_accounts(request):
-    """Handle account selection and import"""
+def import_chart_accounts(request):
+    """Handle client organization selection and import"""
     if request.method != 'POST':
         return redirect('dashboard')
     
     try:
-        # Get selected account IDs from form data
-        selected_accounts = request.POST.getlist('selected_accounts')
+        # Get selected organization tenant IDs from form data (frontend uses 'selected_accounts' field name)
+        selected_organizations = request.POST.getlist('selected_accounts')
         
-        if not selected_accounts:
-            messages.error(request, "Please select at least one account to import")
+        if not selected_organizations:
+            messages.error(request, "Please select at least one client organization to import")
             return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
         
         # Get integration from form or session
@@ -223,69 +301,105 @@ def import_accounts(request):
             status='active'
         )
         
-        # Save selected accounts using the service
+        # Save selected organizations using the service
         service = IntegrationServiceRegistry.get_service(integration)
-        service.save_selected_accounts(selected_accounts)
+        service.save_selected_organizations(selected_organizations)
         
-        # Create mock issues for selected accounts
-        create_mock_issues(integration)
+        # Start syncing transactions for selected organizations
+        try:
+            sync_record = service.sync_selected_organizations(selected_organizations)
+            if sync_record.get('success'):
+                transaction_count = sync_record.get('transaction_count', 0)
+                messages.success(request, f"Successfully imported {len(selected_organizations)} client organizations and {transaction_count} transactions for analysis")
+            else:
+                messages.warning(request, f"Imported {len(selected_organizations)} client organizations, but transaction sync had issues: {sync_record.get('error', 'Unknown error')}")
+        except Exception as sync_error:
+            logger.error(f"Failed to sync transactions: {sync_error}")
+            messages.warning(request, f"Successfully imported {len(selected_organizations)} client organizations, but failed to sync transactions. You can manually sync later.")
         
-        messages.success(request, f"Successfully imported {len(selected_accounts)} accounts for analysis")
         return redirect('dashboard')
         
     except Exception as e:
-        messages.error(request, f"Failed to import accounts: {str(e)}")
+        messages.error(request, f"Failed to import client organizations: {str(e)}")
         return redirect('dashboard')
 
 
-def create_mock_issues(integration):
-    """Create some mock issues for demonstration"""
-    mock_issues = [
-        {
-            'title': 'Duplicate transaction detected',
-            'description': 'Transaction #TXN-2024-001 appears to be duplicated on 2024-01-15',
-            'category': 'duplicate_transactions',
-            'severity': 'high',
-            'count': 3,
-        },
-        {
-            'title': 'Missing tax codes on invoices',
-            'description': '15 invoices from Q1 2024 are missing required tax codes',
-            'category': 'tax_code_errors',
-            'severity': 'medium',
-            'count': 15,
-        },
-        {
-            'title': 'Inconsistent supplier categorization',
-            'description': 'Office Supplies Ltd categorized differently across transactions',
-            'category': 'inconsistent_categories',
-            'severity': 'low',
-            'count': 8,
-        },
-        {
-            'title': 'Future dated transactions',
-            'description': 'Found 2 transactions with dates more than 30 days in the future',
-            'category': 'date_anomalies',
-            'severity': 'critical',
-            'count': 2,
-        },
-        {
-            'title': 'Large amount variance detected',
-            'description': 'Transaction amounts significantly different from historical patterns',
-            'category': 'amount_discrepancies',
-            'severity': 'medium',
-            'count': 5,
-        }
-    ]
+@login_required
+def sync_integration(request, integration_id):
+    """Manually trigger a sync for an integration"""
+    import logging
+    logger = logging.getLogger(__name__)
     
-    for issue_data in random.sample(mock_issues, random.randint(2, 4)):
-        Issue.objects.create(
-            integration=integration,
-            title=issue_data['title'],
-            description=issue_data['description'],
-            category=issue_data['category'],
-            severity=issue_data['severity'],
-            count=issue_data['count'],
-            first_seen=datetime.now() - timedelta(days=random.randint(1, 30)),
-            last_seen=datetime.now() - timedelta(hours=random.randint(1, 24))
+    try:
+        integration = get_object_or_404(
+            Integration,
+            id=integration_id,
+            account__account_users__user=request.user,
+            status='active'
         )
+        
+        # Check if we should run sync in background or synchronously
+        run_async = request.GET.get('async', 'false').lower() == 'true'
+        
+        if run_async:
+            # Trigger background task
+            from .tasks import sync_single_integration
+            task = sync_single_integration.delay(integration_id, sync_type='incremental')
+            messages.info(request, f"Background sync started for {integration.organization_name}. Task ID: {task.id}")
+        else:
+            # Run synchronously (for immediate feedback)
+            sync_record = IntegrationManager.sync_integration(integration, sync_type='incremental')
+            
+            if sync_record.status == 'completed':
+                messages.success(request, f"Successfully synced {sync_record.records_success} transactions")
+            else:
+                messages.warning(request, f"Sync completed with issues: {sync_record.error_message}")
+            
+    except Exception as e:
+        messages.error(request, f"Failed to sync: {str(e)}")
+        logger.error(f"Manual sync failed for integration {integration_id}", exc_info=True)
+    
+    return redirect('dashboard')
+
+
+@login_required
+def transaction_list(request, integration_prefix_id):
+    """Display paginated list of transactions for an integration"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"Transaction list view called for integration {integration_prefix_id} by user {request.user.email}")
+    
+    try:
+        integration = get_object_or_404(
+            Integration,
+            prefix_id=integration_prefix_id,
+            account__account_users__user=request.user,
+            status='active'
+        )
+        
+        # Get transactions for this integration, ordered by date (newest first)
+        transactions = TransactionData.objects.filter(
+            integration=integration
+        ).order_by('-date', '-created_at')
+        
+        # Pagination
+        paginator = Paginator(transactions, 25)  # Show 25 transactions per page
+        page_number = request.GET.get('page')
+        page_obj = paginator.get_page(page_number)
+        
+        context = {
+            'integration': integration,
+            'page_obj': page_obj,
+            'total_transactions': transactions.count(),
+        }
+        
+        logger.info(f"Rendering transaction list with {transactions.count()} total transactions, showing page {page_obj.number} of {paginator.num_pages}")
+        return render(request, 'integrations/transaction_list.html', context)
+        
+    except Exception as e:
+        logger.error(f"Failed to load transaction list for integration {integration_prefix_id}: {str(e)}", exc_info=True)
+        messages.error(request, f"Failed to load transactions: {str(e)}")
+        return redirect('dashboard')
+
+
