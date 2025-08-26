@@ -362,5 +362,94 @@ class TransactionLineItem(models.Model):
         ordering = ['id']
 
 
+class ValidationRuleConfig(models.Model):
+    """Configuration for validation rules per integration."""
+    
+    integration = models.ForeignKey(Integration, on_delete=models.CASCADE, related_name='validation_configs')
+    rule_name = models.CharField(max_length=100, db_index=True)  # e.g., 'duplicate_transactions'
+    is_enabled = models.BooleanField(default=True)
+    config = models.JSONField(default=dict, blank=True)  # Rule-specific settings
+    severity_override = models.CharField(
+        max_length=20, 
+        choices=[
+            ('critical', 'Critical'),
+            ('high', 'High'),
+            ('medium', 'Medium'),
+            ('low', 'Low'),
+        ],
+        null=True, 
+        blank=True,
+        help_text="Override the default severity level for this rule"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['integration', 'rule_name']
+        ordering = ['rule_name']
+    
+    def __str__(self):
+        return f"{self.integration.organization_name} - {self.rule_name}"
+
+
+class ValidationRun(models.Model):
+    """Track validation rule execution runs."""
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('running', 'Running'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+    
+    integration = models.ForeignKey(Integration, on_delete=models.CASCADE, related_name='validation_runs')
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # Run statistics
+    total_rules = models.PositiveIntegerField(default=0)
+    rules_passed = models.PositiveIntegerField(default=0)
+    rules_failed = models.PositiveIntegerField(default=0)
+    issues_found = models.PositiveIntegerField(default=0)
+    
+    # Error handling
+    error_message = models.TextField(blank=True, null=True)
+    
+    # Metadata
+    triggered_by = models.CharField(max_length=50, default='manual')  # 'manual', 'sync', 'scheduled'
+    metadata = models.JSONField(default=dict, blank=True)
+    
+    class Meta:
+        ordering = ['-started_at']
+        indexes = [
+            models.Index(fields=['integration', 'status']),
+            models.Index(fields=['started_at']),
+        ]
+    
+    def __str__(self):
+        return f"Validation run for {self.integration.organization_name} at {self.started_at}"
+    
+    @property
+    def duration(self):
+        """Get the duration of the validation run."""
+        if self.completed_at and self.started_at:
+            return self.completed_at - self.started_at
+        return None
+    
+    def mark_completed(self):
+        """Mark the validation run as completed."""
+        self.status = 'completed'
+        self.completed_at = timezone.now()
+        self.save()
+    
+    def mark_failed(self, error_message: str):
+        """Mark the validation run as failed."""
+        self.status = 'failed'
+        self.error_message = error_message
+        self.completed_at = timezone.now()
+        self.save()
+
+
 # Apply prefix_id to Integration model
 Integration = Integration.has_prefix_id('int')

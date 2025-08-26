@@ -59,24 +59,50 @@ class XeroIntegrationService(BaseIntegrationService):
                 'refresh_token': credentials.refresh_token,
                 'token_type': credentials.token_type,
                 'expires_in': int((credentials.expires_at - timezone.now()).total_seconds()) if credentials.expires_at else 1800,
-                'scope': ' '.join(credentials.scopes) if credentials.scopes else ''
+                'scope': credentials.scopes if credentials.scopes else []  # MUST be a list, not string
             }
         
         @api_client.oauth2_token_saver
         def store_xero_oauth2_token(token):
             """Save token to our database storage"""
+            logger.info(f"Token saver called with token keys: {list(token.keys()) if token else 'None'}")
+            
+            if not token:
+                logger.error("Token saver called with empty token")
+                return
+            
+            # Validate required fields
+            access_token = token.get('access_token')
+            if not access_token:
+                logger.error(f"Token saver called with empty access_token: {token}")
+                return
+                
             credentials = self.get_credentials()
             if credentials:
-                credentials.access_token = token.get('access_token')
+                credentials.access_token = access_token
                 credentials.refresh_token = token.get('refresh_token')
                 credentials.token_type = token.get('token_type', 'Bearer')
-                credentials.scopes = token.get('scope', '').split(' ') if token.get('scope') else []
+                
+                # Handle scope - it might be a string or list
+                scope_value = token.get('scope', '')
+                if isinstance(scope_value, list):
+                    credentials.scopes = scope_value
+                elif isinstance(scope_value, str):
+                    credentials.scopes = scope_value.split(' ') if scope_value else []
+                else:
+                    credentials.scopes = []
                 
                 if token.get('expires_in'):
                     credentials.expires_at = timezone.now() + timezone.timedelta(seconds=int(token['expires_in']))
                 
                 credentials.last_refreshed_at = timezone.now()
-                credentials.save()
+                
+                try:
+                    credentials.save()
+                    logger.info(f"Token saved successfully for integration {self.integration.id}")
+                except Exception as e:
+                    logger.error(f"Failed to save credentials: {e}")
+                    raise
         
         # If we have an existing token, load it into the client
         existing_credentials = self.get_credentials()
@@ -86,7 +112,7 @@ class XeroIntegrationService(BaseIntegrationService):
                 'refresh_token': existing_credentials.refresh_token,
                 'token_type': existing_credentials.token_type,
                 'expires_in': int((existing_credentials.expires_at - timezone.now()).total_seconds()) if existing_credentials.expires_at else 1800,
-                'scope': ' '.join(existing_credentials.scopes) if existing_credentials.scopes else ''
+                'scope': existing_credentials.scopes if existing_credentials.scopes else []  # MUST be a list, not string
             }
             store_xero_oauth2_token(token_dict)
         
@@ -138,7 +164,7 @@ class XeroIntegrationService(BaseIntegrationService):
             oauth2_token.update_token(
                 access_token=token_data['access_token'],
                 refresh_token=token_data.get('refresh_token'),
-                scope=token_data.get('scope', '').split(' ') if token_data.get('scope') else [],
+                scope=token_data.get('scope', '').split(' ') if isinstance(token_data.get('scope'), str) and token_data.get('scope') else (token_data.get('scope') if isinstance(token_data.get('scope'), list) else []),
                 expires_in=token_data.get('expires_in', 1800),
                 token_type=token_data.get('token_type', 'Bearer'),
                 id_token=token_data.get('id_token')
@@ -149,7 +175,7 @@ class XeroIntegrationService(BaseIntegrationService):
                 access_token=token_data['access_token'],
                 refresh_token=token_data.get('refresh_token'),
                 expires_in=token_data.get('expires_in', 1800),
-                scopes=token_data.get('scope', '').split(' ') if token_data.get('scope') else [],
+                scopes=token_data.get('scope', '').split(' ') if isinstance(token_data.get('scope'), str) and token_data.get('scope') else (token_data.get('scope') if isinstance(token_data.get('scope'), list) else []),
                 additional_data={'token_type': token_data.get('token_type', 'Bearer')}
             )
             
@@ -205,48 +231,31 @@ class XeroIntegrationService(BaseIntegrationService):
         delay=1.0
     )
     def refresh_token(self) -> bool:
-        """Refresh Xero access token with retry logic"""
+        """Refresh Xero access token using proper xero-python SDK pattern"""
         credentials = self.get_credentials()
         if not credentials or not credentials.refresh_token:
             raise TokenRefreshError("No refresh token available")
         
         try:
-            oauth2_token = OAuth2Token(
-                client_id=self.config['client_id'],
-                client_secret=self.config['client_secret']
-            )
-            oauth2_token.refresh_token = credentials.refresh_token
-            
             # Apply rate limiting
             self.rate_limiter.wait_if_rate_limited()
             
-            # Create API client for token refresh
-            from xero_python.api_client import ApiClient
-            from xero_python.configuration import Configuration
+            # Use the standard xero-python pattern
+            api_client = self._create_api_client()
             
-            configuration = Configuration(
-                debug=self.config.get('debug', False),
-                oauth2_token=oauth2_token,
-            )
-            api_client = ApiClient(configuration)
+            logger.info(f"Attempting token refresh for integration {self.integration.id}")
             
-            # Refresh the token
-            oauth2_token.refresh_access_token(api_client)
+            # The key fix: Use the proper xero-python SDK method
+            api_client.refresh_oauth2_token()
             
-            # Update stored credentials
-            credentials.access_token = oauth2_token.access_token
-            if oauth2_token.refresh_token:
-                credentials.refresh_token = oauth2_token.refresh_token
+            # Verify the refresh worked by checking if we have a new access token
+            refreshed_credentials = self.get_credentials()
+            refreshed_credentials.refresh_from_db()  # Reload from DB
             
-            if oauth2_token.expires_in:
-                credentials.expires_at = timezone.now() + timezone.timedelta(
-                    seconds=oauth2_token.expires_in
-                )
+            if not refreshed_credentials.access_token:
+                raise TokenRefreshError("Token refresh succeeded but no access token was saved")
             
-            credentials.last_refreshed_at = timezone.now()
-            credentials.save()
-            
-            logger.info(f"Token refreshed for integration {self.integration.id}")
+            logger.info(f"Token refreshed successfully for integration {self.integration.id}")
             return True
             
         except requests.exceptions.RequestException as e:
@@ -609,7 +618,11 @@ class XeroIntegrationService(BaseIntegrationService):
             # Auto-refresh if needed
             if credentials.expires_soon():
                 if not self._safe_refresh_token():
-                    raise Exception("Failed to refresh token for sync")
+                    # Mark integration as needing reconnection instead of failing completely
+                    self.integration.status = 'expired'
+                    self.integration.last_error = "Token expired and refresh failed. Please reconnect to continue syncing."
+                    self.integration.save()
+                    raise TokenRefreshError("Token expired and refresh failed. Please reconnect to Xero to continue syncing.")
                 credentials.refresh_from_db()
             
             # Setup API client

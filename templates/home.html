@@ -50,11 +50,19 @@
             
             <!-- CTA Button -->
             <div class="mb-16">
-                <a href="{% url 'register' %}" class="btn-primary text-lg px-12 py-4 inline-flex items-center space-x-3 hover:shadow-lg transform hover:scale-105 transition-all duration-200">
-                    <span>Set Up Free</span>
-                    <i class="fas fa-arrow-right"></i>
-                </a>
-                <p class="text-sm text-gray-500 mt-4">No credit card required • Generous free plan</p>
+                {% if user.is_authenticated %}
+                    <a href="{% url 'dashboard' %}" class="btn-primary text-lg px-12 py-4 inline-flex items-center space-x-3 hover:shadow-lg transform hover:scale-105 transition-all duration-200">
+                        <span>Go to Dashboard</span>
+                        <i class="fas fa-tachometer-alt"></i>
+                    </a>
+                    <p class="text-sm text-gray-500 mt-4">Welcome back! Access your dashboard to continue</p>
+                {% else %}
+                    <a href="{% url 'register' %}" class="btn-primary text-lg px-12 py-4 inline-flex items-center space-x-3 hover:shadow-lg transform hover:scale-105 transition-all duration-200">
+                        <span>Set Up Free</span>
+                        <i class="fas fa-arrow-right"></i>
+                    </a>
+                    <p class="text-sm text-gray-500 mt-4">No credit card required • Generous free plan</p>
+                {% endif %}
             </div>
             
             <!-- Social Proof / Trust Indicators -->

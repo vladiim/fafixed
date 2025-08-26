@@ -1,8 +1,9 @@
 from django.shortcuts import render, redirect
-from django.contrib.auth import login
+from django.contrib.auth import login, logout
 from django.contrib.auth.views import LoginView
 from django.contrib.auth.decorators import login_required
 from django.urls import reverse_lazy
+from django.contrib import messages
 from .forms import CustomUserCreationForm
 
 def home(request):
@@ -81,12 +82,21 @@ class CustomLoginView(LoginView):
         })
         return form
 
+def custom_logout(request):
+    """
+    Custom logout view that properly logs out user and redirects to home
+    """
+    logout(request)
+    messages.success(request, "You have been successfully logged out.")
+    return redirect('home')
+
 @login_required
 def dashboard(request):
     from integrations.models import Integration, Issue, TransactionData
     from integrations.services.base import IntegrationServiceRegistry
     from django.db.models import Sum, Count, Q
     from datetime import datetime, timedelta
+    from django.contrib import messages
     
     # Get user's current account
     current_account = None
@@ -163,3 +173,4 @@ def dashboard(request):
         'recent_transactions': recent_transactions,
     }
     return render(request, 'dashboard.html', context)
+

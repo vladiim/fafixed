@@ -2,6 +2,7 @@ from celery import shared_task
 from django.utils import timezone
 from .models import Integration, OAuthState, IntegrationCredential
 from .managers import IntegrationManager
+from .validation.engine import ValidationEngine
 import logging
 
 logger = logging.getLogger(__name__)
@@ -171,3 +172,51 @@ def refresh_expiring_tokens(self, minutes_ahead=60):
     except Exception as e:
         logger.error(f"Failed to refresh expiring tokens: {str(e)}", exc_info=True)
         return {"status": "error", "error_message": str(e)}
+
+
+@shared_task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 2, 'countdown': 300})
+def run_validation_rules(self, integration_id, rule_names=None, triggered_by='manual'):
+    """
+    Background task to run validation rules for an integration.
+    
+    Args:
+        integration_id: ID of the integration to validate
+        rule_names: Optional list of specific rule names to run
+        triggered_by: What triggered this validation run
+    """
+    try:
+        integration = Integration.objects.get(id=integration_id, status='active')
+        logger.info(f"Running validation rules for integration {integration_id} ({integration.organization_name})")
+        
+        validation_run = ValidationEngine.run_validation(
+            integration=integration,
+            rule_names=rule_names,
+            triggered_by=triggered_by
+        )
+        
+        result = {
+            "integration_id": integration_id,
+            "validation_run_id": validation_run.id,
+            "status": validation_run.status,
+            "total_rules": validation_run.total_rules,
+            "rules_passed": validation_run.rules_passed,
+            "rules_failed": validation_run.rules_failed,
+            "issues_found": validation_run.issues_found,
+            "error_message": validation_run.error_message
+        }
+        
+        logger.info(f"Validation completed for integration {integration_id}. "
+                   f"Rules passed: {validation_run.rules_passed}, "
+                   f"Rules failed: {validation_run.rules_failed}, "
+                   f"Issues found: {validation_run.issues_found}")
+        
+        return result
+        
+    except Integration.DoesNotExist:
+        error_msg = f"Integration {integration_id} not found or not active"
+        logger.error(error_msg)
+        return {"integration_id": integration_id, "status": "error", "error_message": error_msg}
+    except Exception as e:
+        error_msg = f"Exception running validation for integration {integration_id}: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        return {"integration_id": integration_id, "status": "error", "error_message": error_msg}

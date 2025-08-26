@@ -2,8 +2,9 @@
 module.exports = {
   content: [
     './templates/**/*.html',
-    './core/templates/**/*.html',
+    './*/templates/**/*.html',  // Catch-all for Django app templates
     './static/js/**/*.js',
+    './**/*.py',  // Scan Python files for dynamic classes
   ],
   theme: {
     extend: {

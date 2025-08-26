@@ -16,4 +16,5 @@ dependencies = [
     "celery>=5.5.3",
     "redis>=5.0.0",
     "requests>=2.31.0",
+    "pytest>=8.4.1",
 ]

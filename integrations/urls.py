@@ -8,6 +8,7 @@ urlpatterns = [
     path('import-chart-accounts/', views.import_chart_accounts, name='import_chart_accounts'),
     path('test/<str:integration_prefix_id>/', views.test_integration, name='test_integration'),
     path('sync/<str:integration_prefix_id>/', views.sync_integration, name='sync_integration'),
+    path('refresh-sync/<str:integration_prefix_id>/', views.refresh_sync_integration, name='refresh_sync_integration'),
     path('revoke/<str:integration_prefix_id>/', views.revoke_integration, name='revoke_integration'),
     path('transactions/<str:integration_prefix_id>/', views.transaction_list, name='transaction_list'),
     

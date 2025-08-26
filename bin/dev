@@ -1,13 +1,31 @@
 #!/usr/bin/env bash
 
-# Start Tailwind CSS watcher in background
-npx tailwindcss -i ./static/src/input.css -o ./static/dist/styles.css --watch &
+# Initial build and collect
+npm run build
+uv run python manage.py collectstatic --noinput
+
+# Start Tailwind CSS watcher in background with polling for reliable file watching
+CHOKIDAR_USEPOLLING=1 npx tailwindcss -i ./static/src/input.css -o ./static/dist/styles.css --watch &
 TAILWIND_PID=$!
+
+# Function to collect static files when CSS changes
+collect_static() {
+    while inotifywait -e modify ./static/dist/styles.css 2>/dev/null; do
+        uv run python manage.py collectstatic --noinput > /dev/null 2>&1
+    done &
+    INOTIFY_PID=$!
+}
+
+# Start file watcher if inotifywait is available, otherwise skip
+if command -v inotifywait > /dev/null; then
+    collect_static
+fi
 
 # Function to kill background processes
 cleanup() {
     echo "Stopping development server..."
     kill $TAILWIND_PID 2>/dev/null
+    kill $INOTIFY_PID 2>/dev/null
     exit
 }
 

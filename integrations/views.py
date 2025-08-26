@@ -363,6 +363,64 @@ def sync_integration(request, integration_id):
 
 
 @login_required
+def refresh_sync_integration(request, integration_prefix_id):
+    """Trigger refresh sync for an integration - pulls transactions from last sync to now"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        integration = get_object_or_404(
+            Integration,
+            prefix_id=integration_prefix_id,
+            account__account_users__user=request.user,
+            status__in=['active', 'expired']  # Allow both active and expired integrations
+        )
+        
+        logger.info(f"Refresh sync triggered for integration {integration.id} ({integration.organization_name}) by user {request.user.email}")
+        
+        # If integration is expired, redirect directly to reconnect
+        if integration.status == 'expired':
+            messages.warning(request, f"Your Xero connection for {integration.organization_name} has expired. Redirecting to reconnect...")
+            logger.info(f"Integration {integration.id} is expired, redirecting to reconnect")
+            return redirect('xero_connect')
+        
+        # Check if we should run sync in background or synchronously
+        run_async = request.GET.get('async', 'false').lower() == 'true'
+        
+        if run_async:
+            # Trigger background task
+            from .tasks import sync_single_integration
+            task = sync_single_integration.delay(integration.id, sync_type='incremental')
+            messages.info(request, f"Background refresh sync started for {integration.organization_name}. Task ID: {task.id}")
+            logger.info(f"Background refresh sync task {task.id} started for integration {integration.id}")
+        else:
+            # Run synchronously for immediate feedback
+            sync_record = IntegrationManager.sync_integration(integration, sync_type='incremental')
+            
+            if sync_record.status == 'completed':
+                transaction_count = sync_record.records_success or 0
+                if transaction_count > 0:
+                    messages.success(request, f"Refresh sync completed: {transaction_count} new transactions synced for {integration.organization_name}")
+                else:
+                    messages.success(request, f"Refresh sync completed: No new transactions found for {integration.organization_name}. All data is up to date!")
+                logger.info(f"Refresh sync completed successfully: {transaction_count} transactions for integration {integration.id}")
+            else:
+                messages.warning(request, f"Refresh sync completed with issues for {integration.organization_name}: {sync_record.error_message}")
+                logger.warning(f"Refresh sync completed with issues for integration {integration.id}: {sync_record.error_message}")
+            
+    except TokenRefreshError as e:
+        messages.warning(request, f"Your Xero connection has expired for {integration.organization_name}. Redirecting to reconnect...")
+        logger.error(f"Token refresh failed for integration {integration_prefix_id}: {str(e)}")
+        # Automatically redirect to Xero reconnect flow
+        return redirect('xero_connect')
+    except Exception as e:
+        messages.error(request, f"Failed to refresh sync: {str(e)}")
+        logger.error(f"Refresh sync failed for integration {integration_prefix_id}", exc_info=True)
+    
+    return redirect('dashboard')
+
+
+@login_required
 def transaction_list(request, integration_prefix_id):
     """Display paginated list of transactions for an integration"""
     import logging

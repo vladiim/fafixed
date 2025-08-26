@@ -4,26 +4,6 @@
 
 {% block content %}
 <div class="min-h-screen bg-gray-50">
-    <!-- Top Navigation -->
-    <nav class="bg-brand-white border-b border-gray-200">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-16">
-                <div class="flex items-center">
-                    <h1 class="text-2xl font-heading font-bold text-brand-black">
-                        FA<span class="text-brand-green">Fixed</span>
-                    </h1>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <span class="text-sm text-gray-600">{{ user.email }}</span>
-                    <a href="{% url 'logout' %}" class="text-sm text-gray-500 hover:text-brand-black">
-                        <i class="fas fa-sign-out-alt mr-1"></i>
-                        Logout
-                    </a>
-                </div>
-            </div>
-        </div>
-    </nav>
-
     <div class="flex">
         <!-- Sidebar -->
         <div class="w-64 bg-brand-white shadow-sm h-screen sticky top-0">
@@ -81,20 +61,29 @@
                                         <div class="w-2 h-2 bg-brand-green rounded-full mr-2"></div>
                                         <span class="text-xs text-gray-500">{{ integration.selected_accounts_count }} client organisations</span>
                                     </div>
-                                    <div class="flex items-center space-x-2">
-                                        {% if integration.transaction_count > 0 %}
-                                        <a href="{% url 'transaction_list' integration.prefix_id %}" class="text-xs text-brand-black hover:underline font-medium">
-                                            {{ integration.transaction_count }} transactions
-                                        </a>
-                                        {% else %}
-                                        <span class="text-xs text-gray-500">{{ integration.transaction_count }} transactions</span>
-                                        {% endif %}
-                                        {% if integration.needs_reconnect %}
-                                        <a href="{% url 'xero_connect' %}" class="text-xs text-orange-600 hover:underline font-medium">
-                                            Reconnect
-                                        </a>
-                                        {% endif %}
+                                    <div class="flex items-center justify-between mt-2">
+                                        <div class="flex items-center space-x-2">
+                                            {% if integration.transaction_count > 0 %}
+                                            <a href="{% url 'transaction_list' integration.prefix_id %}" class="text-xs text-brand-black hover:underline font-medium">
+                                                {{ integration.transaction_count }} transactions
+                                            </a>
+                                            {% else %}
+                                            <span class="text-xs text-gray-500">{{ integration.transaction_count }} transactions</span>
+                                            {% endif %}
+                                            {% if integration.needs_reconnect %}
+                                            <a href="{% url 'xero_connect' %}" class="text-xs text-orange-600 hover:underline font-medium">
+                                                Reconnect
+                                            </a>
+                                            {% endif %}
+                                        </div>
                                     </div>
+                                  </div>
+                                  <div class="mt-2">
+                                      <a href="{% url 'refresh_sync_integration' integration.prefix_id %}" data-turbo="false" class="inline-flex items-center px-2 py-1 text-xs font-medium text-brand-black bg-gray-100 hover:bg-gray-200 rounded transition-colors">
+                                          <i class="fas fa-sync-alt mr-1"></i>
+                                          Refresh Sync
+                                      </a>
+                                  </div>
                                 {% else %}
                                     <div class="flex items-center">
                                         <div class="w-2 h-2 bg-orange-400 rounded-full mr-2"></div>
