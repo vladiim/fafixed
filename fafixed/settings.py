@@ -41,7 +41,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'channels',
     'django_extensions',
+    'turbo_helper',
     'core',
     'integrations',
 ]
@@ -76,6 +78,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'fafixed.wsgi.application'
+ASGI_APPLICATION = 'fafixed.asgi.application'
 
 
 # Database
@@ -212,4 +215,17 @@ CELERY_TASK_ROUTES = {
     'integrations.tasks.sync_*': {'queue': 'sync'},
     'integrations.tasks.cleanup_*': {'queue': 'cleanup'},
     'integrations.tasks.refresh_*': {'queue': 'auth'},
+}
+
+# Custom test runner for better output formatting
+TEST_RUNNER = 'core.test_runner.ColoredTestRunner'
+
+# Channels configuration
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')],
+        },
+    },
 }

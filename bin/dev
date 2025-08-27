@@ -4,6 +4,18 @@
 npm run build
 uv run python manage.py collectstatic --noinput
 
+# Start Redis server if not running
+if ! pgrep -f redis-server > /dev/null; then
+    echo "Starting Redis server..."
+    redis-server --daemonize yes --port 6379
+    REDIS_STARTED=true
+fi
+
+# Start Celery worker in background
+echo "Starting Celery worker..."
+uv run celery -A fafixed worker --loglevel=info &
+CELERY_PID=$!
+
 # Start Tailwind CSS watcher in background with polling for reliable file watching
 CHOKIDAR_USEPOLLING=1 npx tailwindcss -i ./static/src/input.css -o ./static/dist/styles.css --watch &
 TAILWIND_PID=$!
@@ -26,14 +38,20 @@ cleanup() {
     echo "Stopping development server..."
     kill $TAILWIND_PID 2>/dev/null
     kill $INOTIFY_PID 2>/dev/null
+    kill $CELERY_PID 2>/dev/null
+    if [ "$REDIS_STARTED" = true ]; then
+        echo "Stopping Redis server..."
+        redis-cli shutdown
+    fi
     exit
 }
 
 # Set trap to cleanup on script exit
 trap cleanup INT TERM
 
-# Start Django development server
-uv run python manage.py runserver
+# Start Django ASGI server with daphne for WebSocket support
+echo "Starting Django ASGI server with daphne..."
+uv run daphne -b 0.0.0.0 -p 8000 fafixed.asgi:application
 
 # Kill background processes when Django server stops
 cleanup

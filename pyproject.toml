@@ -17,4 +17,8 @@ dependencies = [
     "redis>=5.0.0",
     "requests>=2.31.0",
     "pytest>=8.4.1",
+    "django-turbo-helper>=2.1.4",
+    "channels>=4.0.0",
+    "channels-redis>=4.2.0",
+    "daphne>=4.0.0",
 ]

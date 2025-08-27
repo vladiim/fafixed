@@ -1,0 +1,119 @@
+{% if transaction %}
+{% load turbo_helper %}
+<turbo-cable-stream-source channel="TurboStreamCableChannel" stream-name="validation_updates_{{ transaction.id }}"></turbo-cable-stream-source>
+<turbo-frame id="transaction-{{ transaction.id }}-actions">
+    <div class="flex items-center space-x-3">
+        <!-- View Button -->
+        <button class="text-brand-black hover:text-brand-green transition-colors" 
+                title="View transaction details">
+            <i class="fas fa-eye"></i>
+            <span class="sr-only">View</span>
+            View
+        </button>
+        
+        <!-- Validation Rules Dropdown -->
+        {% with status=transaction.get_validation_status_display %}
+        <div class="relative" data-controller="dropdown">
+            <button type="button" 
+                    class="flex items-center space-x-1 px-3 py-1 rounded-md text-xs font-medium border transition-colors
+                    {% if task_id %}
+                        border-blue-300 text-blue-700 bg-blue-50
+                    {% elif status.css_class == 'validation-status-none' %}
+                        border-red-300 text-red-700 bg-red-50 hover:bg-red-100
+                    {% elif status.css_class == 'validation-status-some' %}
+                        border-orange-300 text-orange-700 bg-orange-50 hover:bg-orange-100
+                    {% else %}
+                        border-green-300 text-green-700 bg-green-50 hover:bg-green-100
+                    {% endif %}"
+                    data-action="click->dropdown#toggle"
+                    title="Run validation rules on this transaction"
+                    {% if task_id %}disabled{% endif %}>
+                {% if task_id %}
+                    <i class="fas fa-spinner fa-spin mr-2"></i>
+                    <span>Running Validations...</span>
+                {% else %}
+                    <i class="fas fa-check-circle mr-2"></i>
+                    <span>Run Validation Rules {{ status.text }}</span>
+                    <i class="fas fa-chevron-down"></i>
+                {% endif %}
+            </button>
+            
+            <!-- Dropdown Menu -->
+            <div class="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-lg border border-gray-200 hidden z-10" 
+                 data-dropdown-target="menu"
+                 {% if task_id %}style="display: none !important;"{% endif %}>
+                <div class="p-4">
+                    {% if error %}
+                        <div class="mb-3 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+                            {{ error }}
+                        </div>
+                    {% endif %}
+                    
+                    {% if task_id %}
+                        <div class="mb-3 p-3 bg-blue-100 border border-blue-400 text-blue-700 rounded">
+                            <i class="fas fa-spinner fa-spin mr-2"></i>
+                            Validations running... (Task: {{ task_id|slice:":8" }})
+                        </div>
+                    {% endif %}
+                    
+                    <h4 class="text-sm font-medium text-gray-900 mb-3">Select Validation Rules</h4>
+                    <form action="{% url 'run_transaction_validations' transaction.id %}" 
+                          method="post" 
+                          data-controller="validation-runner"
+                          data-turbo-frame="transaction-{{ transaction.id }}-actions"
+                          class="space-y-2">
+                        {% csrf_token %}
+                        {% for rule_status in transaction.get_validation_rule_statuses %}
+                            <label class="flex items-center justify-between">
+                                <div class="flex items-center">
+                                    <input type="checkbox" 
+                                           class="rounded border-gray-300 text-brand-green focus:ring-brand-green" 
+                                           name="rules" 
+                                           value="{{ rule_status.name }}"
+                                           {% if rule_status.name == 'duplicate_transactions' %}checked{% endif %}>
+                                    <span class="ml-2 text-sm text-gray-700">{{ rule_status.display_name }}</span>
+                                </div>
+                                <div class="flex items-center space-x-1 ml-2">
+                                    {% if rule_status.status == 'completed' %}
+                                        {% if rule_status.passed %}
+                                            <i class="fas fa-check-circle text-green-600" title="Passed"></i>
+                                        {% else %}
+                                            <i class="fas fa-exclamation-triangle text-red-600" title="Failed - {{ rule_status.issues_found }} issues"></i>
+                                        {% endif %}
+                                        {% if rule_status.can_view_details %}
+                                            <a href="#" class="text-xs text-blue-600 hover:underline" title="View details">
+                                                <i class="fas fa-external-link-alt"></i>
+                                            </a>
+                                        {% endif %}
+                                    {% elif rule_status.status == 'running' %}
+                                        <i class="fas fa-spinner fa-spin text-blue-600" title="Running"></i>
+                                    {% elif rule_status.status == 'failed' %}
+                                        <i class="fas fa-times-circle text-red-600" title="Error"></i>
+                                    {% else %}
+                                        <i class="fas fa-circle text-gray-400" title="Not run"></i>
+                                    {% endif %}
+                                </div>
+                            </label>
+                        {% endfor %}
+                        
+                        <div class="pt-3 border-t border-gray-200">
+                            <button type="submit" 
+                                    class="w-full bg-brand-black text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-800 transition-colors">
+                                Run Validations
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endwith %}
+    </div>
+</turbo-frame>
+{% else %}
+<div class="text-red-600 p-4">
+    Transaction not found or access denied.
+    {% if error %}
+        <br>{{ error }}
+    {% endif %}
+</div>
+{% endif %}

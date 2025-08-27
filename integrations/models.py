@@ -274,6 +274,165 @@ class TransactionData(models.Model):
     def account(self):
         """Get the account this transaction belongs to (for convenience)"""
         return self.integration.account
+    
+    def get_available_validation_rules_count(self):
+        """Get the count of available validation rules for this transaction's integration"""
+        from .validation.registry import ValidationRuleRegistry
+        try:
+            enabled_rules = ValidationRuleRegistry.get_enabled_rules_for_integration(self.integration)
+            return len(enabled_rules)
+        except Exception:
+            # Fallback to all registered rules if integration-specific lookup fails
+            return len(ValidationRuleRegistry.get_rule_names())
+    
+    def get_validation_status_count(self):
+        """Get the count of validation rules that have been run on this transaction"""
+        return self.validation_statuses.filter(status='completed').count()
+    
+    def get_validation_status_display(self):
+        """Get the validation status as (x/y) format with CSS class"""
+        completed = self.get_validation_status_count()
+        total = self.get_available_validation_rules_count()
+        
+        if completed == 0:
+            css_class = 'validation-status-none'
+        elif completed == total:
+            css_class = 'validation-status-all'
+        else:
+            css_class = 'validation-status-some'
+        
+        return {
+            'text': f'({completed}/{total})',
+            'css_class': css_class,
+            'completed': completed,
+            'total': total
+        }
+    
+    def get_validation_rule_statuses(self):
+        """Get status of individual validation rules for this transaction"""
+        from .validation.registry import ValidationRuleRegistry
+        
+        try:
+            # Get enabled rules for this integration
+            enabled_rules = ValidationRuleRegistry.get_enabled_rules_for_integration(self.integration)
+            rule_names = [rule.name for rule in enabled_rules]
+        except Exception:
+            # Fallback to all registered rules
+            rule_names = ValidationRuleRegistry.get_rule_names()
+        
+        # Get existing statuses
+        existing_statuses = {
+            status.rule_name: status 
+            for status in self.validation_statuses.all()
+        }
+        
+        # Build status list for all available rules
+        rule_statuses = []
+        for rule_name in rule_names:
+            status = existing_statuses.get(rule_name)
+            rule_statuses.append({
+                'name': rule_name,
+                'display_name': rule_name.replace('_', ' ').title(),
+                'status': status.status if status else 'not_run',
+                'passed': status.passed if status else None,
+                'issues_found': status.issues_found if status else 0,
+                'can_view_details': status and status.status == 'completed',
+                'status_obj': status
+            })
+        
+        return rule_statuses
+
+
+class TransactionValidationStatus(models.Model):
+    """Tracks which validation rules have been run on each transaction"""
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('running', 'Running'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+    ]
+    
+    SEVERITY_CHOICES = [
+        ('info', 'Info'),
+        ('warning', 'Warning'),
+        ('error', 'Error'),
+        ('critical', 'Critical'),
+    ]
+    
+    transaction = models.ForeignKey(TransactionData, on_delete=models.CASCADE, related_name='validation_statuses')
+    rule_name = models.CharField(max_length=100)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # Execution tracking
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Results
+    passed = models.BooleanField(null=True, blank=True)  # None = not run, True = passed, False = failed
+    issues_found = models.PositiveIntegerField(default=0)
+    severity = models.CharField(max_length=20, choices=SEVERITY_CHOICES, null=True, blank=True)
+    
+    # Details
+    result_data = models.JSONField(default=dict, blank=True)  # Stores detailed validation results
+    error_message = models.TextField(null=True, blank=True)
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ['transaction', 'rule_name']
+        indexes = [
+            models.Index(fields=['transaction', 'rule_name']),
+            models.Index(fields=['status']),
+            models.Index(fields=['completed_at']),
+        ]
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.rule_name} on {self.transaction} - {self.status}"
+    
+    @property
+    def duration(self):
+        """Get the duration of the validation run."""
+        if self.completed_at and self.started_at:
+            return self.completed_at - self.started_at
+        return None
+    
+    def mark_running(self):
+        """Mark validation as running"""
+        self.status = 'running'
+        self.started_at = timezone.now()
+        self.save()
+    
+    def mark_completed(self, passed, issues_found=0, severity=None, result_data=None):
+        """Mark validation as completed"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"Marking TransactionValidationStatus {self.id} as completed for transaction {self.transaction_id}")
+        
+        self.status = 'completed'
+        self.completed_at = timezone.now()
+        self.passed = passed
+        self.issues_found = issues_found
+        if severity:
+            self.severity = severity
+        if result_data:
+            self.result_data = result_data
+            
+        logger.info(f"About to save TransactionValidationStatus {self.id} with status: {self.status}")
+        self.save()
+        logger.info(f"TransactionValidationStatus {self.id} saved successfully")
+    
+    def mark_failed(self, error_message):
+        """Mark validation as failed"""
+        self.status = 'failed'
+        self.completed_at = timezone.now()
+        self.error_message = error_message
+        self.save()
+    
 
 
 class OAuthState(models.Model):

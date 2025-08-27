@@ -4,12 +4,10 @@ export default class extends Controller {
   static targets = ["menu"]
 
   connect() {
-    console.log("Dropdown controller connected!")
     this.boundCloseOnOutsideClick = this.closeOnOutsideClick.bind(this)
   }
 
   toggle() {
-    console.log("Dropdown toggle clicked!")
     if (this.menuTarget.classList.contains("hidden")) {
       this.open()
     } else {

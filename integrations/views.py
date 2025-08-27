@@ -1,9 +1,10 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
+from turbo_helper import turbo_stream
 from django.core.paginator import Paginator
-from .models import Integration, Issue, IntegrationProvider, TransactionData
+from .models import Integration, Issue, IntegrationProvider, TransactionData, TransactionValidationStatus
 from .managers import IntegrationManager
 from .services.base import IntegrationServiceRegistry
 from .utils import TokenRefreshError
@@ -12,6 +13,8 @@ from . import services  # Import services to ensure registration
 import uuid
 from datetime import datetime, timedelta
 import random
+import json
+import time
 
 @login_required
 def xero_connect(request):
@@ -459,5 +462,143 @@ def transaction_list(request, integration_prefix_id):
         logger.error(f"Failed to load transaction list for integration {integration_prefix_id}: {str(e)}", exc_info=True)
         messages.error(request, f"Failed to load transactions: {str(e)}")
         return redirect('dashboard')
+
+
+@login_required
+def transaction_actions(request, transaction_id):
+    """Get current transaction actions state (for Turbo Frame reloads)"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # First check if transaction exists at all
+        try:
+            transaction = TransactionData.objects.get(id=transaction_id)
+        except TransactionData.DoesNotExist:
+            return JsonResponse({'error': 'Transaction not found'}, status=404)
+        
+        # Then check if user has access to this transaction
+        if not transaction.integration.account.account_users.filter(user=request.user).exists():
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        # Check if there are any pending validation statuses (indicating a task is running)
+        pending_statuses = transaction.validation_statuses.filter(status='pending')
+        task_id = None
+        if pending_statuses.exists():
+            # Simulate task_id for UI (we don't track actual celery task IDs in the DB)
+            # In a real implementation, you might store the task_id in the TransactionValidationStatus
+            task_id = "running"  # Just indicate that tasks are running
+        
+        # Return Turbo Frame with current state
+        return render(request, 'integrations/partials/transaction_actions.html', {
+            'transaction': transaction,
+            'task_id': task_id
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching transaction actions for transaction {transaction_id}: {str(e)}", exc_info=True)
+        
+        return render(request, 'integrations/partials/transaction_actions.html', {
+            'transaction': transaction if 'transaction' in locals() else None,
+            'error': f'Failed to load transaction actions: {str(e)}'
+        }, status=500)
+
+
+
+
+def run_transaction_validations(request, transaction_id):
+    """Run selected validation rules on a specific transaction"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST method required'}, status=405)
+    
+    try:
+        # First check if transaction exists at all
+        try:
+            transaction = TransactionData.objects.get(id=transaction_id)
+        except TransactionData.DoesNotExist:
+            return JsonResponse({'error': 'Transaction not found'}, status=404)
+        
+        # Then check if user has access to this transaction
+        if not transaction.integration.account.account_users.filter(user=request.user).exists():
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        
+        # Get selected rules from form data
+        selected_rules = request.POST.getlist('rules')
+        logger.info(f"Running validations for transaction {transaction_id}: {selected_rules}")
+        
+        if not selected_rules:
+            # Return Turbo Stream with error message
+            return turbo_stream.response(
+                turbo_stream.replace(
+                    f"transaction-{transaction.id}-actions",
+                    template="integrations/partials/transaction_actions.html",
+                    context={'transaction': transaction, 'error': 'No validation rules selected'},
+                    request=request
+                )
+            )
+        
+        # Create pending validation status records for selected rules
+        validation_statuses = []
+        for rule_name in selected_rules:
+            status, created = TransactionValidationStatus.objects.get_or_create(
+                transaction=transaction,
+                rule_name=rule_name,
+                defaults={
+                    'status': 'pending'
+                }
+            )
+            # Reset status if it already existed
+            if not created:
+                status.status = 'pending'
+                status.passed = None
+                status.issues_found = 0
+                status.error_message = None
+                status.result_data = {}
+                status.save()
+            
+            validation_statuses.append(status)
+        
+        # Trigger celery task to run the validations
+        try:
+            from .tasks import run_transaction_validations as run_validations_task
+            task = run_validations_task.delay(transaction_id, selected_rules)
+            task_id = task.id
+            logger.info(f"Started validation task {task_id} for transaction {transaction_id}")
+        except Exception as celery_error:
+            logger.warning(f"Failed to start Celery task: {celery_error}")
+            task_id = None
+        
+        # Return Turbo Stream response for real-time updates
+        return turbo_stream.response(
+            turbo_stream.replace(
+                f"transaction-{transaction.id}-actions",
+                template="integrations/partials/transaction_actions.html",
+                context={'transaction': transaction, 'task_id': task_id},
+                request=request
+            )
+        )
+        
+    except Exception as e:
+        logger.error(f"Error running validations for transaction {transaction_id}: {str(e)}", exc_info=True)
+        
+        # For 404 errors, return proper HTTP response
+        from django.http import Http404
+        if isinstance(e, Http404):
+            return JsonResponse({'error': 'Transaction not found'}, status=404)
+        
+        return turbo_stream.response(
+            turbo_stream.replace(
+                f"transaction-{transaction_id}-actions",
+                template="integrations/partials/transaction_actions.html", 
+                context={
+                    'transaction': transaction if 'transaction' in locals() else None,
+                    'error': f'Failed to run validations: {str(e)}'
+                },
+                request=request
+            )
+        )
 
 
