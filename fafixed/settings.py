@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'channels',
     'django_extensions',
     'turbo_helper',
+    'actioncable',
     'core',
     'integrations',
 ]
@@ -57,6 +58,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'core.middleware.SpikeLoggingMiddleware',
 ]
 
 ROOT_URLCONF = 'fafixed.urls'

@@ -21,4 +21,6 @@ dependencies = [
     "channels>=4.0.0",
     "channels-redis>=4.2.0",
     "daphne>=4.0.0",
+    "django-actioncable>=1.0.4",
+    "websockets>=15.0.1",
 ]

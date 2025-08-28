@@ -336,3 +336,50 @@ def run_transaction_validations(self, transaction_id, rule_names):
         raise
 
 
+@shared_task(bind=True)
+def refresh_transaction_status_task(self, transaction_id):
+    """SPIKE: Simple task to update transaction's updated_at timestamp"""
+    import logging
+    import time
+    from django.utils import timezone
+    
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"🚀 SPIKE TASK: Starting refresh for transaction {transaction_id}")
+    
+    try:
+        # Get the transaction
+        from .models import TransactionData
+        transaction = TransactionData.objects.get(id=transaction_id)
+        
+        logger.info(f"⏱️ SPIKE TASK: Found transaction {transaction_id}, simulating work...")
+        
+        # Simulate some work
+        time.sleep(2)
+        
+        # Update the timestamp
+        old_timestamp = transaction.updated_at
+        transaction.updated_at = timezone.now()
+        transaction.save()
+        
+        logger.info(f"✅ SPIKE TASK: Updated transaction {transaction_id} timestamp from {old_timestamp} to {transaction.updated_at}")
+        
+        # The model save will trigger django-lifecycle hooks which will broadcast the update
+        return {
+            "transaction_id": transaction_id,
+            "status": "completed",
+            "old_timestamp": str(old_timestamp),
+            "new_timestamp": str(transaction.updated_at)
+        }
+        
+    except TransactionData.DoesNotExist:
+        error_msg = f"❌ SPIKE TASK: Transaction {transaction_id} not found"
+        logger.error(error_msg)
+        raise Exception(error_msg)
+        
+    except Exception as e:
+        error_msg = f"❌ SPIKE TASK: Failed to refresh transaction {transaction_id}: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        raise
+
+

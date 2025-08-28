@@ -470,6 +470,8 @@ def transaction_actions(request, transaction_id):
     import logging
     logger = logging.getLogger(__name__)
     
+    logger.info(f"📋 SPIKE: Loading transaction actions for transaction {transaction_id}")
+    
     try:
         # First check if transaction exists at all
         try:
@@ -596,6 +598,82 @@ def run_transaction_validations(request, transaction_id):
                 context={
                     'transaction': transaction if 'transaction' in locals() else None,
                     'error': f'Failed to run validations: {str(e)}'
+                },
+                request=request
+            )
+        )
+
+
+def spike_test(request):
+    """SPIKE: Simple test endpoint"""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"🧪 SPIKE TEST: Test endpoint called via {request.method}")
+    from django.http import HttpResponse
+    return HttpResponse("SPIKE TEST WORKS!")
+
+
+def websocket_test(request):
+    """SPIKE: WebSocket connection test"""
+    from django.shortcuts import render
+    return render(request, 'websocket_test.html')
+
+
+@login_required
+def refresh_transaction_status(request, transaction_id):
+    """SPIKE: Refresh transaction status with background job and real-time updates"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"🎯 SPIKE VIEW: ========== REFRESH TRANSACTION STATUS VIEW CALLED ==========")
+    logger.info(f"🔄 SPIKE VIEW: Refresh transaction status called for transaction {transaction_id}")
+    logger.info(f"🔄 SPIKE VIEW: Request method: {request.method}")
+    logger.info(f"🔄 SPIKE VIEW: Request user: {request.user}")
+    logger.info(f"🔄 SPIKE VIEW: Request path: {request.path}")
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST method required'}, status=405)
+    
+    try:
+        # Get transaction with user access check
+        transaction = get_object_or_404(
+            TransactionData,
+            id=transaction_id,
+            integration__account__account_users__user=request.user
+        )
+        
+        logger.info(f"🔄 SPIKE: Found transaction {transaction_id}, current updated_at: {transaction.updated_at}")
+        
+        # Start background task
+        try:
+            from .tasks import refresh_transaction_status_task
+            task = refresh_transaction_status_task.delay(transaction_id)
+            task_id = task.id
+            logger.info(f"🚀 SPIKE: Started background task {task_id} for transaction {transaction_id}")
+        except Exception as celery_error:
+            logger.error(f"❌ SPIKE: Failed to start Celery task: {celery_error}")
+            task_id = None
+        
+        # Return Turbo Stream response showing "refreshing" state
+        logger.info(f"📤 SPIKE: Returning Turbo Stream response for transaction {transaction_id}")
+        return turbo_stream.response(
+            turbo_stream.replace(
+                f"transaction-{transaction.id}-actions",
+                template="integrations/partials/transaction_actions.html",
+                context={'transaction': transaction, 'refresh_task_id': task_id},
+                request=request
+            )
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ SPIKE: Error refreshing transaction {transaction_id}: {str(e)}", exc_info=True)
+        return turbo_stream.response(
+            turbo_stream.replace(
+                f"transaction-{transaction_id}-actions",
+                template="integrations/partials/transaction_actions.html", 
+                context={
+                    'transaction': transaction if 'transaction' in locals() else None,
+                    'error': f'Failed to refresh: {str(e)}'
                 },
                 request=request
             )

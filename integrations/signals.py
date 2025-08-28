@@ -2,7 +2,8 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-from .models import TransactionValidationStatus
+from turbo_helper.channels.broadcasts import broadcast_render_to
+from .models import TransactionValidationStatus, TransactionData
 
 
 @receiver(post_save, sender=TransactionValidationStatus)
@@ -82,3 +83,38 @@ def broadcast_validation_update(sender, instance, **kwargs):
             logger.info(f"Successfully broadcasted update for transaction {instance.transaction_id}")
         except Exception as e:
             logger.error(f"Failed to broadcast: {e}")
+
+
+@receiver(post_save, sender=TransactionData)
+def broadcast_transaction_update(sender, instance, **kwargs):
+    """SPIKE: Broadcast transaction updates via django-turbo-helper"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"🔔 SPIKE SIGNAL: Transaction {instance.id} updated, broadcasting via turbo-helper")
+    
+    try:
+        # SPIKE: Send a simple test message instead of complex template
+        from turbo_helper.channels.broadcasts import broadcast_action_to
+        
+        # Create simple HTML that will clearly show if WebSocket works
+        simple_html = f"""
+        <div style="border: 2px solid green; padding: 20px; margin: 10px;">
+            <h2>✅ Hello WebSocket!</h2>
+            <p>🎉 WebSocket connection is working!</p>
+            <p>Transaction {instance.id} updated at {instance.updated_at.strftime('%H:%M:%S')}</p>
+            <p>Current time: <span id="timestamp">Live updating...</span></p>
+        </div>
+        """
+        
+        broadcast_action_to(
+            "transaction_updates", 
+            instance.id, 
+            action="replace", 
+            target="test-frame", 
+            html=simple_html
+        )
+        logger.info(f"✅ SPIKE SIGNAL: Successfully broadcasted HELLO WEBSOCKET for transaction {instance.id}")
+        
+    except Exception as e:
+        logger.error(f"❌ SPIKE SIGNAL: Failed to broadcast transaction update: {e}", exc_info=True)
