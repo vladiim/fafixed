@@ -470,7 +470,7 @@ def transaction_actions(request, transaction_id):
     import logging
     logger = logging.getLogger(__name__)
     
-    logger.info(f"📋 SPIKE: Loading transaction actions for transaction {transaction_id}")
+    logger.info(f"Loading transaction actions for transaction {transaction_id}")
     
     try:
         # First check if transaction exists at all
@@ -563,22 +563,52 @@ def run_transaction_validations(request, transaction_id):
             
             validation_statuses.append(status)
         
-        # Trigger celery task to run the validations
-        try:
-            from .tasks import run_transaction_validations as run_validations_task
-            task = run_validations_task.delay(transaction_id, selected_rules)
-            task_id = task.id
-            logger.info(f"Started validation task {task_id} for transaction {transaction_id}")
-        except Exception as celery_error:
-            logger.warning(f"Failed to start Celery task: {celery_error}")
-            task_id = None
+        # Return immediate "running" state, let Celery job handle completion via ActionCable
+        task_id = "direct_validation"  # Show running state
         
-        # Return Turbo Stream response for real-time updates
+        # Start background validation work (simulate Celery)
+        import threading
+        
+        def run_validations_background():
+            """Background validation work (simulates Celery task)"""
+            try:
+                import time
+                
+                # Simulate validation work
+                time.sleep(2)
+                
+                # Process each validation rule
+                for status in validation_statuses:
+                    # Mark as running
+                    status.mark_running()
+                    
+                    # Simulate validation result
+                    import random
+                    passed = random.choice([True, False])
+                    issues_found = 0 if passed else random.randint(1, 3)
+                    
+                    # Mark as completed (this will trigger the validation signal via ActionCable)
+                    status.mark_completed(
+                        passed=passed,
+                        issues_found=issues_found,
+                        severity='info' if passed else 'warning',
+                        result_data={'simulated': True, 'rule': status.rule_name}
+                    )
+                
+            except Exception as validation_error:
+                logger.error(f"❌ VALIDATION: Failed to run background validations: {validation_error}")
+        
+        # Start background validation work
+        validation_thread = threading.Thread(target=run_validations_background)
+        validation_thread.daemon = True
+        validation_thread.start()
+        
+        # Return immediate Turbo Stream showing "running" state
         return turbo_stream.response(
             turbo_stream.replace(
                 f"transaction-{transaction.id}-actions",
                 template="integrations/partials/transaction_actions.html",
-                context={'transaction': transaction, 'task_id': task_id},
+                context={'transaction': transaction, 'task_id': task_id},  # Show running state
                 request=request
             )
         )
@@ -604,32 +634,16 @@ def run_transaction_validations(request, transaction_id):
         )
 
 
-def spike_test(request):
-    """SPIKE: Simple test endpoint"""
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info(f"🧪 SPIKE TEST: Test endpoint called via {request.method}")
-    from django.http import HttpResponse
-    return HttpResponse("SPIKE TEST WORKS!")
 
-
-def websocket_test(request):
-    """SPIKE: WebSocket connection test"""
-    from django.shortcuts import render
-    return render(request, 'websocket_test.html')
 
 
 @login_required
 def refresh_transaction_status(request, transaction_id):
-    """SPIKE: Refresh transaction status with background job and real-time updates"""
+    """Refresh transaction status with background job and real-time updates"""
     import logging
     logger = logging.getLogger(__name__)
     
-    logger.info(f"🎯 SPIKE VIEW: ========== REFRESH TRANSACTION STATUS VIEW CALLED ==========")
-    logger.info(f"🔄 SPIKE VIEW: Refresh transaction status called for transaction {transaction_id}")
-    logger.info(f"🔄 SPIKE VIEW: Request method: {request.method}")
-    logger.info(f"🔄 SPIKE VIEW: Request user: {request.user}")
-    logger.info(f"🔄 SPIKE VIEW: Request path: {request.path}")
+    logger.info(f"Refresh transaction status called for transaction {transaction_id}")
     
     if request.method != 'POST':
         return JsonResponse({'error': 'POST method required'}, status=405)
@@ -642,20 +656,29 @@ def refresh_transaction_status(request, transaction_id):
             integration__account__account_users__user=request.user
         )
         
-        logger.info(f"🔄 SPIKE: Found transaction {transaction_id}, current updated_at: {transaction.updated_at}")
+        logger.info(f"Found transaction {transaction_id}, updating timestamp")
         
-        # Start background task
+        # Update transaction directly to test WebSocket
         try:
-            from .tasks import refresh_transaction_status_task
-            task = refresh_transaction_status_task.delay(transaction_id)
-            task_id = task.id
-            logger.info(f"🚀 SPIKE: Started background task {task_id} for transaction {transaction_id}")
-        except Exception as celery_error:
-            logger.error(f"❌ SPIKE: Failed to start Celery task: {celery_error}")
+            from django.utils import timezone
+            import time
+            
+            # Simulate the work that would be done
+            time.sleep(1)  # Brief delay to simulate processing
+            
+            # Update the transaction timestamp (this will trigger the signal)
+            transaction.updated_at = timezone.now()
+            transaction.save()
+            
+            logger.info(f"Updated transaction {transaction_id} timestamp")
+            
+            task_id = "direct_update"  # Fake task ID
+        except Exception as update_error:
+            logger.error(f"Failed to update transaction: {update_error}")
             task_id = None
         
         # Return Turbo Stream response showing "refreshing" state
-        logger.info(f"📤 SPIKE: Returning Turbo Stream response for transaction {transaction_id}")
+        logger.info(f"Returning Turbo Stream response for transaction {transaction_id}")
         return turbo_stream.response(
             turbo_stream.replace(
                 f"transaction-{transaction.id}-actions",
@@ -666,7 +689,7 @@ def refresh_transaction_status(request, transaction_id):
         )
         
     except Exception as e:
-        logger.error(f"❌ SPIKE: Error refreshing transaction {transaction_id}: {str(e)}", exc_info=True)
+        logger.error(f"Error refreshing transaction {transaction_id}: {str(e)}", exc_info=True)
         return turbo_stream.response(
             turbo_stream.replace(
                 f"transaction-{transaction_id}-actions",

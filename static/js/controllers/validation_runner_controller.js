@@ -10,6 +10,10 @@ export default class extends Controller {
     })
   }
   
+  submit(event) {
+    // Submit method - just close dropdown
+  }
+  
   closeDropdown() {
     // Find the parent dropdown and close it
     const dropdownController = this.element.closest('[data-controller*="dropdown"]')

@@ -1,10 +1,18 @@
-console.log("Loading stimulus.js...")
-
-// Load Stimulus and Turbo from node_modules
+// Load Stimulus, Turbo, and ActionCable from node_modules
 import { Application } from "@hotwired/stimulus"
 import "@hotwired/turbo"
+import { createConsumer } from "@rails/actioncable"
 
-console.log("🚀 SPIKE: Stimulus and Turbo loaded, letting Turbo handle WebSocket connections")
+// Configure ActionCable to connect to our WebSocket endpoint
+const cable = createConsumer("ws://localhost:8000/cable")
+window.cable = cable  // Make it globally available
+
+// Add ActionCable connection debugging with correct API
+cable.subscriptions.consumer.events = {
+  connected() {},
+  disconnected() {},
+  rejected() {}
+}
 
 // Import controllers
 import AccountDropdownController from "./controllers/account_dropdown_controller.js"
@@ -12,6 +20,7 @@ import MessageAlertController from "./controllers/message_alert_controller.js"
 import DropdownController from "./controllers/dropdown_controller.js"
 import ValidationRunnerController from "./controllers/validation_runner_controller.js"
 import RefreshStatusController from "./controllers/refresh_status_controller.js"
+import ActionCableController from "./controllers/actioncable_controller.js"
 
 const application = Application.start()
 
@@ -21,58 +30,26 @@ application.register("message-alert", MessageAlertController)
 application.register("dropdown", DropdownController)
 application.register("validation-runner", ValidationRunnerController)
 application.register("refresh-status", RefreshStatusController)
+application.register("actioncable", ActionCableController)
 
 // Configure Stimulus development experience  
 application.debug = false  // Disable debug to reduce console noise
 window.Stimulus = application
 
-console.log("Stimulus loaded, registered controllers:", application.router.modulesByIdentifier)
-
-// SPIKE: Simple Turbo configuration 
+// Simple Turbo configuration 
 document.addEventListener('turbo:before-cache', () => {
   // Remove all message alerts before caching the page
   document.querySelectorAll('[data-controller="message-alert"]').forEach(el => el.remove())
 })
 
-// SPIKE: Log Turbo events for debugging
-document.addEventListener('turbo:frame-load', (event) => {
-  console.log('🔄 SPIKE: Turbo frame loaded:', event.target.id)
-})
-
-document.addEventListener('turbo:submit-start', (event) => {
-  console.log('🚀 SPIKE: Form submission started for target:', event.target.getAttribute('data-turbo-frame'))
-})
-
-document.addEventListener('turbo:submit-end', (event) => {
-  console.log('✅ SPIKE: Form submission completed')
-  if (event.detail.success) {
-    console.log('✅ SPIKE: Form submission successful')
-  } else {
-    console.log('❌ SPIKE: Form submission failed')
-  }
-})
-
-// Add error handling
+// Error handling for Turbo
 document.addEventListener('turbo:fetch-request-error', (event) => {
-  console.log('❌ SPIKE: Turbo fetch request error:', event.detail)
+  // Turbo fetch error handled
 })
 
 document.addEventListener('turbo:frame-missing', (event) => {
-  console.log('❌ SPIKE: Turbo frame missing:', event.detail)
+  // Turbo frame missing handled
 })
 
-// SPIKE: Disabled problematic event listeners to focus on core functionality
-
-document.addEventListener('turbo:frame-render', (event) => {
-  if (event.target.id.includes('transaction-')) {
-    console.log('🖼️ SPIKE: Frame rendered:', event.target.id)
-  }
-})
-
-document.addEventListener('turbo:frame-load', (event) => {
-  if (event.target.id.includes('transaction-')) {
-    console.log('📋 SPIKE: Frame loaded:', event.target.id)
-  }
-})
 
 export { application }

@@ -1,8 +1,14 @@
 {% extends 'base.html' %}
+{% load turbo_helper %}
 
 {% block title %}Transactions - {{ integration.organization_name }} - FAFixed{% endblock %}
 
 {% block content %}
+<!-- ActionCable WebSocket connections for all transactions -->
+<div data-controller="actioncable" 
+     data-actioncable-url-value="ws://localhost:8000/cable"
+     data-actioncable-subscriptions-value='[{% for transaction in page_obj %}{"stream_name": "transaction_updates_{{ transaction.id }}"}{% if not forloop.last %},{% endif %}{% endfor %}]'>
+</div>
 <div class="min-h-screen bg-gray-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <!-- Header -->
