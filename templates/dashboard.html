@@ -3,8 +3,7 @@
 {% block title %}Dashboard - FAFixed{% endblock %}
 
 {% block content %}
-<div class="min-h-screen bg-gray-50">
-    <div class="flex flex-row min-h-screen">
+<div class="flex bg-gray-50 min-h-screen">
         <!-- Sidebar -->
         <div class="w-64 bg-brand-white shadow-sm flex-shrink-0">
             <div class="p-6">
@@ -61,29 +60,20 @@
                                         <div class="w-2 h-2 bg-brand-green rounded-full mr-2"></div>
                                         <span class="text-xs text-gray-500">{{ integration.selected_accounts_count }} client organisations</span>
                                     </div>
-                                    <div class="flex items-center justify-between mt-2">
-                                        <div class="flex items-center space-x-2">
-                                            {% if integration.transaction_count > 0 %}
-                                            <a href="{% url 'transaction_list' integration.prefix_id %}" class="text-xs text-brand-black hover:underline font-medium">
-                                                {{ integration.transaction_count }} transactions
-                                            </a>
-                                            {% else %}
-                                            <span class="text-xs text-gray-500">{{ integration.transaction_count }} transactions</span>
-                                            {% endif %}
-                                            {% if integration.needs_reconnect %}
-                                            <a href="{% url 'xero_connect' %}" class="text-xs text-orange-600 hover:underline font-medium">
-                                                Reconnect
-                                            </a>
-                                            {% endif %}
-                                        </div>
+                                    <div class="flex items-center space-x-2 mt-2">
+                                        {% if integration.transaction_count > 0 %}
+                                        <a href="{% url 'transaction_list' integration.prefix_id %}" class="text-xs text-brand-black hover:underline font-medium">
+                                            {{ integration.transaction_count }} transactions
+                                        </a>
+                                        {% else %}
+                                        <span class="text-xs text-gray-500">{{ integration.transaction_count }} transactions</span>
+                                        {% endif %}
+                                        {% if integration.needs_reconnect %}
+                                        <a href="{% url 'xero_connect' %}" class="text-xs text-orange-600 hover:underline font-medium">
+                                            Reconnect
+                                        </a>
+                                        {% endif %}
                                     </div>
-                                  </div>
-                                  <div class="mt-2">
-                                      <a href="{% url 'refresh_sync_integration' integration.prefix_id %}" data-turbo="false" class="inline-flex items-center px-2 py-1 text-xs font-medium text-brand-black bg-gray-100 hover:bg-gray-200 rounded transition-colors">
-                                          <i class="fas fa-sync-alt mr-1"></i>
-                                          Refresh Sync
-                                      </a>
-                                  </div>
                                 {% else %}
                                     <div class="flex items-center">
                                         <div class="w-2 h-2 bg-orange-400 rounded-full mr-2"></div>
@@ -94,6 +84,14 @@
                                     </a>
                                 {% endif %}
                             </div>
+                            {% if integration.has_selected_accounts %}
+                            <div class="mt-2">
+                                <a href="{% url 'refresh_sync_integration' integration.prefix_id %}" data-turbo="false" class="inline-flex items-center px-2 py-1 text-xs font-medium text-brand-black bg-gray-100 hover:bg-gray-200 rounded transition-colors">
+                                    <i class="fas fa-sync-alt mr-1"></i>
+                                    Refresh Sync
+                                </a>
+                            </div>
+                            {% endif %}
                         </div>
                         {% empty %}
                         <div class="text-center p-4 text-gray-500">
@@ -208,6 +206,5 @@
             </div>
             {% endif %}
         </div>
-    </div>
 </div>
 {% endblock %}
