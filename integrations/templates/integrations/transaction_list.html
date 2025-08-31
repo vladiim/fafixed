@@ -6,7 +6,7 @@
 {% block content %}
 <!-- ActionCable WebSocket connections for all transactions -->
 <div data-controller="actioncable" 
-     data-actioncable-url-value="ws://localhost:8000/cable"
+     data-actioncable-url-value="{{ WEBSOCKET_URL }}"
      data-actioncable-subscriptions-value='[{% for transaction in page_obj %}{"stream_name": "transaction_updates_{{ transaction.id }}"}{% if not forloop.last %},{% endif %}{% endfor %}]'>
 </div>
 <div class="min-h-screen bg-gray-50">

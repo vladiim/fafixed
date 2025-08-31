@@ -245,10 +245,46 @@ def xero_chart_accounts(request, integration_prefix_id):
                 if tenant_id:
                     try:
                         service.save_selected_organizations([tenant_id])
-                        messages.success(request, f"Successfully imported client organization: {organizations[0].get('name', 'Unknown Organization')}")
+                        
+                        # Also auto-select all bank accounts for this organization
+                        logger.info("Auto-selecting all bank accounts for the organization")
+                        try:
+                            bank_accounts = service.get_chart_of_accounts(tenant_id)
+                            logger.info(f"Fetched {len(bank_accounts)} total accounts from Xero")
+                            
+                            # Log all account types to see what's available
+                            account_types = {}
+                            for acc in bank_accounts:
+                                acc_type = acc.get('type')
+                                if acc_type not in account_types:
+                                    account_types[acc_type] = 0
+                                account_types[acc_type] += 1
+                            logger.info(f"Account types found: {account_types}")
+                            
+                            bank_account_ids = [acc.get('account_id') for acc in bank_accounts if acc.get('type') == 'BANK']
+                            logger.info(f"Found {len(bank_account_ids)} BANK type accounts: {bank_account_ids}")
+                            
+                            if bank_account_ids:
+                                service.save_selected_accounts(bank_account_ids)
+                                logger.info(f"Auto-selected {len(bank_account_ids)} bank accounts: {bank_account_ids}")
+                                messages.success(request, f"Successfully imported client organization: {organizations[0].get('name', 'Unknown Organization')} and selected {len(bank_account_ids)} bank accounts for syncing")
+                            else:
+                                # Try selecting all accounts if no BANK accounts found
+                                all_account_ids = [acc.get('account_id') for acc in bank_accounts]
+                                if all_account_ids:
+                                    service.save_selected_accounts(all_account_ids)
+                                    logger.info(f"No BANK accounts found, auto-selected all {len(all_account_ids)} accounts: {all_account_ids}")
+                                    messages.success(request, f"Successfully imported client organization: {organizations[0].get('name', 'Unknown Organization')} and selected {len(all_account_ids)} accounts for syncing")
+                                else:
+                                    logger.warning("No accounts found to select")
+                                    messages.success(request, f"Successfully imported client organization: {organizations[0].get('name', 'Unknown Organization')}")
+                        except Exception as account_error:
+                            logger.error(f"Error fetching or selecting accounts: {account_error}", exc_info=True)
+                            messages.success(request, f"Successfully imported client organization: {organizations[0].get('name', 'Unknown Organization')}")
+                            
                         return redirect('dashboard')
                     except Exception as auto_select_error:
-                        logger.error(f"Failed to auto-select organization: {auto_select_error}")
+                        logger.error(f"Failed to auto-select organization or accounts: {auto_select_error}")
                         # Continue to render template if auto-select fails
                         
         except Exception as api_error:
@@ -386,6 +422,13 @@ def refresh_sync_integration(request, integration_prefix_id):
             messages.warning(request, f"Your Xero connection for {integration.organization_name} has expired. Redirecting to reconnect...")
             logger.info(f"Integration {integration.id} is expired, redirecting to reconnect")
             return redirect('xero_connect')
+        
+        # Check if integration has selected accounts configured
+        selected_accounts = integration.config.get('selected_accounts', [])
+        if not selected_accounts:
+            messages.info(request, f"Please select bank accounts to sync for {integration.organization_name}")
+            logger.info(f"Integration {integration.id} has no selected accounts, redirecting to chart accounts selection")
+            return redirect('xero_chart_accounts', integration_prefix_id=integration.prefix_id)
         
         # Check if we should run sync in background or synchronously
         run_async = request.GET.get('async', 'false').lower() == 'true'

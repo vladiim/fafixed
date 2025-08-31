@@ -8,7 +8,7 @@ import { Controller } from "@hotwired/stimulus"
  * 
  * Usage:
  * <div data-controller="actioncable" 
- *      data-actioncable-url-value="ws://localhost:8000/cable"
+ *      data-actioncable-url-value="{{ WEBSOCKET_URL }}"
  *      data-actioncable-subscriptions-value='[{"stream_name": "my_stream_1"}, {"stream_name": "my_stream_2"}]'>
  * </div>
  * 

@@ -20,7 +20,9 @@ class IntegrationManager:
                 is_active=True
             )
         except IntegrationProvider.DoesNotExist:
-            raise ValueError(f"Provider '{provider_name}' not found or inactive")
+            # Auto-create provider if it doesn't exist
+            provider = IntegrationManager._create_default_provider(provider_name)
+            logger.info(f"Auto-created provider '{provider_name}' during integration creation")
         
         with transaction.atomic():
             integration = Integration.objects.create(
@@ -122,3 +124,33 @@ class IntegrationManager:
                     logger.warning(f"Failed to refresh token for integration {integration.id}")
             except Exception as e:
                 logger.error(f"Error refreshing token for integration {integration.id}: {e}")
+    
+    @staticmethod
+    def _create_default_provider(provider_name: str) -> IntegrationProvider:
+        """Create a default IntegrationProvider for known provider types"""
+        
+        # Default configurations for known providers
+        provider_configs = {
+            'xero': {
+                'display_name': 'Xero',
+                'provider_type': 'xero',
+                'auth_url_template': 'https://login.xero.com/identity/connect/authorize',
+                'token_url': 'https://identity.xero.com/connect/token',
+                'revoke_url': 'https://identity.xero.com/connect/revoke',
+                'scopes_default': ['accounting.transactions', 'accounting.contacts', 'accounting.settings']
+            },
+            # Add other providers here as needed
+        }
+        
+        if provider_name not in provider_configs:
+            raise ValueError(f"Unknown provider '{provider_name}' - cannot auto-create")
+        
+        config = provider_configs[provider_name]
+        
+        provider = IntegrationProvider.objects.create(
+            name=provider_name,
+            is_active=True,
+            **config
+        )
+        
+        return provider

@@ -1,4 +1,5 @@
 from django.contrib.auth.models import AnonymousUser
+from django.conf import settings
 from .models import UserProfile, Account
 
 def clear_user_context(request):
@@ -23,6 +24,7 @@ def current_user_and_account(request):
     context = {
         'current_user': None,
         'current_account': None,
+        'WEBSOCKET_URL': settings.WEBSOCKET_URL,  # Add WebSocket URL to context
     }
     
     # If user is anonymous or not authenticated, clear any stale context

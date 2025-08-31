@@ -3,8 +3,12 @@ import { Application } from "@hotwired/stimulus"
 import "@hotwired/turbo"
 import { createConsumer } from "@rails/actioncable"
 
+// Get WebSocket URL from meta tag (set in base.html from Django settings)
+const websocketMeta = document.querySelector('meta[name="websocket-url"]')
+const websocketUrl = websocketMeta ? websocketMeta.content : "ws://localhost:8000/cable"
+
 // Configure ActionCable to connect to our WebSocket endpoint
-const cable = createConsumer("ws://localhost:8000/cable")
+const cable = createConsumer(websocketUrl)
 window.cable = cable  // Make it globally available
 
 // Add ActionCable connection debugging with correct API

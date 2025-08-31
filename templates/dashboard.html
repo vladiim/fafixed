@@ -4,9 +4,9 @@
 
 {% block content %}
 <div class="min-h-screen bg-gray-50">
-    <div class="flex">
+    <div class="flex flex-row min-h-screen">
         <!-- Sidebar -->
-        <div class="w-64 bg-brand-white shadow-sm h-screen sticky top-0">
+        <div class="w-64 bg-brand-white shadow-sm flex-shrink-0">
             <div class="p-6">
                 <!-- Summary Stats -->
                 <div class="mb-8">
@@ -110,7 +110,7 @@
         </div>
 
         <!-- Main Content -->
-        <div class="flex-1 p-8">
+        <div class="flex-1 overflow-auto p-8">
             <!-- Header -->
             <div class="mb-8">
                 <h2 class="text-3xl font-heading font-bold text-brand-black mb-2">Issues Dashboard</h2>

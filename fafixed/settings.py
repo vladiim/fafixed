@@ -230,3 +230,12 @@ CHANNEL_LAYERS = {
         },
     },
 }
+
+# WebSocket configuration
+# For development: ws://localhost:8000/cable
+# For production: wss://your-domain.com/cable
+if DEBUG:
+    WEBSOCKET_URL = os.getenv('WEBSOCKET_URL', 'ws://localhost:8000/cable')
+else:
+    # In production, use wss:// and the actual domain
+    WEBSOCKET_URL = os.getenv('WEBSOCKET_URL', f'wss://{ALLOWED_HOSTS[0]}/cable' if ALLOWED_HOSTS else 'wss://localhost/cable')

@@ -14,8 +14,37 @@ from django.utils import timezone
 import logging
 import requests
 import time
+from decimal import Decimal
+import datetime
 
 logger = logging.getLogger(__name__)
+
+
+def convert_decimals_for_json(data):
+    """Convert non-JSON-serializable objects to JSON serializable formats"""
+    if isinstance(data, dict):
+        return {key: convert_decimals_for_json(value) for key, value in data.items()}
+    elif isinstance(data, list):
+        return [convert_decimals_for_json(item) for item in data]
+    elif isinstance(data, Decimal):
+        return float(data)
+    elif isinstance(data, (datetime.date, datetime.datetime)):
+        return data.isoformat()
+    elif hasattr(data, '__dict__') and not isinstance(data, type):
+        # Handle objects with attributes (like CurrencyCode, etc.) by converting to dict
+        try:
+            return convert_decimals_for_json(data.__dict__)
+        except:
+            # If that fails, try to get string representation
+            return str(data)
+    elif hasattr(data, 'value'):
+        # Handle enum-like objects with 'value' attribute
+        return data.value
+    elif not isinstance(data, (str, int, float, bool, type(None))):
+        # For any other non-basic type, convert to string
+        return str(data)
+    else:
+        return data
 
 
 class XeroIntegrationService(BaseIntegrationService):
@@ -514,23 +543,25 @@ class XeroIntegrationService(BaseIntegrationService):
                             'reference': xero_transaction.reference or '',
                             'description': getattr(xero_transaction, 'description', ''),
                             'amount': float(xero_transaction.total or 0),
-                            'currency_code': self._safe_get_value(xero_transaction.currency_code, 'AUD'),
+                            'currency_code': str(self._safe_get_value(xero_transaction.currency_code, 'AUD'))[:3],
                             'status': self._safe_get_value(xero_transaction.status, 'authorised'),
                             'is_reconciled': getattr(xero_transaction, 'is_reconciled', False),
                             'contact_name': xero_transaction.contact.name if xero_transaction.contact else '',
                             'contact_external_id': xero_transaction.contact.contact_id if xero_transaction.contact else '',
                             'external_url': f"https://go.xero.com/Bank/BankAccounts.aspx?accountID={xero_transaction.bank_account.account_id}" if xero_transaction.bank_account else '',
-                            'raw_data': {
+                            'raw_data': convert_decimals_for_json({
                                 'bank_transaction_id': xero_transaction.bank_transaction_id,
                                 'type': self._safe_get_value(xero_transaction.type, None),
                                 'tenant_id': tenant_id
-                            }
+                            })
                         }
                     )
                     
                     if created:
                         transactions_synced += 1
-                        logger.debug(f"Created new transaction: {transaction_data.external_transaction_id}")
+                        logger.info(f"Created new transaction: {transaction_data.external_transaction_id}")
+                    else:
+                        logger.debug(f"Transaction already exists: {transaction_data.external_transaction_id}")
                     
                     # Process line items if they exist
                     if xero_transaction.line_items:
@@ -602,6 +633,53 @@ class XeroIntegrationService(BaseIntegrationService):
     def get_selected_accounts(self) -> List[str]:
         """Get list of selected account IDs from config"""
         return self.integration.config.get('selected_accounts', [])
+    
+    def get_chart_of_accounts(self, tenant_id: str) -> List[dict]:
+        """Get chart of accounts from Xero for a specific tenant"""
+        credentials = self.get_credentials()
+        if not credentials:
+            raise Exception("No credentials available")
+        
+        # Auto-refresh if needed
+        if credentials.expires_soon():
+            self._safe_refresh_token()
+            credentials.refresh_from_db()
+        
+        # Setup API client
+        oauth2_token = OAuth2Token(
+            client_id=self.config['client_id'],
+            client_secret=self.config['client_secret']
+        )
+        oauth2_token.access_token = credentials.access_token
+        
+        api_client = self._create_api_client(oauth2_token)
+        accounting_api = AccountingApi(api_client)
+        
+        # Fetch accounts
+        response = accounting_api.get_accounts(
+            xero_tenant_id=tenant_id
+        )
+        
+        # Convert to list of dictionaries
+        accounts = []
+        if response.accounts:
+            for account in response.accounts:
+                # Convert enum to string
+                account_type = account.type
+                if hasattr(account_type, 'value'):
+                    account_type = account_type.value
+                else:
+                    account_type = str(account_type)
+                    
+                accounts.append({
+                    'account_id': account.account_id,
+                    'name': account.name,
+                    'type': account_type,
+                    'bank_account_number': getattr(account, 'bank_account_number', None),
+                    'code': getattr(account, 'code', None),
+                })
+        
+        return accounts
 
     def sync_data(self, sync_type: str = 'incremental') -> IntegrationSync:
         """Sync data from Xero"""
@@ -679,17 +757,20 @@ class XeroIntegrationService(BaseIntegrationService):
             # Daily sync - get only yesterday's transactions
             from_date = (datetime.now() - timedelta(days=1)).date()
         else:
-            # Incremental sync - get data since last sync or last 30 days
+            # Incremental sync - get data since last sync or last 2 years for new integrations
             if self.integration.last_sync_at:
                 from_date = self.integration.last_sync_at.date()
             else:
-                from_date = (datetime.now() - timedelta(days=30)).date()
+                # For new integrations, get last 2 years of data
+                from_date = (datetime.now() - timedelta(days=730)).date()
         
         # Build where clause for filtering
         where_clause = f'Date >= DateTime({from_date.year}, {from_date.month}, {from_date.day})'
         
         # Only sync transactions for selected accounts if configured
         selected_accounts = self.get_selected_accounts()
+        logger.info(f"Starting sync with date filter: {where_clause}")
+        logger.info(f"Selected accounts filter: {selected_accounts}")
         
         transactions_synced = 0
         page = 1
@@ -702,6 +783,11 @@ class XeroIntegrationService(BaseIntegrationService):
                     self.rate_limiter.wait_if_rate_limited()
                     
                     # Fetch transactions page by page
+                    logger.info(f"Requesting page {page} from Xero API:")
+                    logger.info(f"  - Tenant ID: {self.integration.external_account_id}")
+                    logger.info(f"  - Where clause: {where_clause}")
+                    logger.info(f"  - Page: {page}, Page size: {page_size}")
+                    
                     response = accounting_api.get_bank_transactions(
                         xero_tenant_id=self.integration.external_account_id,
                         where=where_clause,
@@ -709,6 +795,12 @@ class XeroIntegrationService(BaseIntegrationService):
                         page_size=page_size,
                         order='Date ASC'
                     )
+                    
+                    logger.info(f"Xero API response received:")
+                    logger.info(f"  - Response type: {type(response)}")
+                    logger.info(f"  - Has bank_transactions: {hasattr(response, 'bank_transactions')}")
+                    if hasattr(response, 'bank_transactions'):
+                        logger.info(f"  - Bank transactions count: {len(response.bank_transactions) if response.bank_transactions else 0}")
                 except xero_exceptions.HTTPStatusException as e:
                     if e.status == 401:  # Token expired/unauthorized
                         logger.info(f"Got 401 error during sync on page {page}, attempting token refresh...")
@@ -743,7 +835,10 @@ class XeroIntegrationService(BaseIntegrationService):
                     continue
                 
                 if not response.bank_transactions:
+                    logger.info(f"No transactions returned on page {page}, ending sync")
                     break
+                
+                logger.info(f"Page {page}: received {len(response.bank_transactions)} transactions from Xero")
                 
                 for xero_transaction in response.bank_transactions:
                     try:
@@ -751,6 +846,7 @@ class XeroIntegrationService(BaseIntegrationService):
                         if selected_accounts:
                             if xero_transaction.bank_account and \
                                xero_transaction.bank_account.account_id not in selected_accounts:
+                                logger.debug(f"Skipping transaction from account {xero_transaction.bank_account.account_id} (not in selected accounts)")
                                 continue
                         
                         # Map Xero transaction type to our types
@@ -769,11 +865,11 @@ class XeroIntegrationService(BaseIntegrationService):
                             'date': xero_transaction.date,
                             'reference': xero_transaction.reference or '',
                             'amount': abs(float(xero_transaction.total or 0)),
-                            'currency_code': getattr(xero_transaction, 'currency_code', 'USD') or 'USD',
+                            'currency_code': str(getattr(xero_transaction, 'currency_code', 'USD') or 'USD')[:3],
                             'status': xero_transaction.status.lower() if xero_transaction.status else 'authorised',
                             'is_reconciled': bool(xero_transaction.is_reconciled),
                             'external_url': getattr(xero_transaction, 'url', None) or self._build_transaction_url(xero_transaction.bank_transaction_id),
-                            'raw_data': xero_transaction.to_dict() if hasattr(xero_transaction, 'to_dict') else {},
+                            'raw_data': convert_decimals_for_json(xero_transaction.to_dict()) if hasattr(xero_transaction, 'to_dict') else {},
                             'last_synced_at': timezone.now()
                         }
                         
