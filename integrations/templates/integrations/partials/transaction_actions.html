@@ -2,6 +2,18 @@
 {% load turbo_helper %}
 <turbo-frame id="transaction-{{ transaction.prefix_id }}-actions">
     <div class="flex items-center space-x-3">
+        <!-- Edit Button (Super Admin Only) -->
+        {% if user.profile.is_super_admin %}
+        <a href="{% url 'transaction_edit_check' transaction.prefix_id %}" 
+           class="text-brand-black hover:text-brand-green transition-colors" 
+           title="Edit transaction (Super Admin only)"
+           data-turbo="false">
+            <i class="fas fa-edit"></i>
+            <span class="sr-only">Edit</span>
+            Edit
+        </a>
+        {% endif %}
+        
         <!-- View Button -->
         <button class="text-brand-black hover:text-brand-green transition-colors" 
                 title="View transaction details">

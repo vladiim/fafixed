@@ -8,7 +8,9 @@ from .models import Integration, Issue, IntegrationProvider, TransactionData, Tr
 from .managers import IntegrationManager
 from .services.base import IntegrationServiceRegistry
 from .utils import TokenRefreshError
+from .forms import TransactionEditForm
 from core.models import Account
+from core.decorators import super_admin_required, check_user_can_edit_transactions
 from . import services  # Import services to ensure registration
 import uuid
 from datetime import datetime, timedelta
@@ -725,4 +727,78 @@ def refresh_transaction_status(request, transaction_prefix_id):
             )
         )
 
+
+
+
+
+@super_admin_required
+def transaction_edit(request, transaction_prefix_id):
+    """Edit transaction data - super_admin only"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"Transaction edit view called for {transaction_prefix_id} by {request.user.email}")
+    
+    try:
+        # Get transaction with user access check
+        transaction = get_object_or_404(
+            TransactionData,
+            prefix_id=transaction_prefix_id,
+            integration__account__account_users__user=request.user
+        )
+        
+        if request.method == 'POST':
+            form = TransactionEditForm(request.POST, instance=transaction)
+            if form.is_valid():
+                # Store original values for audit
+                original_data = {
+                    'amount': transaction.amount,
+                    'date': transaction.date,
+                    'reference': transaction.reference,
+                    'description': transaction.description,
+                    'contact_name': transaction.contact_name,
+                    'status': transaction.status,
+                }
+                
+                # Save changes
+                form.user = request.user  # For audit trail
+                updated_transaction = form.save()
+                
+                # Log the change
+                logger.info(f"Transaction {transaction_prefix_id} updated by {request.user.email}")
+                logger.info(f"Original: {original_data}")
+                logger.info(f"Updated: amount={updated_transaction.amount}, date={updated_transaction.date}, reference={updated_transaction.reference}")
+                
+                messages.success(request, f"Transaction {transaction.prefix_id} updated successfully")
+                return redirect('transaction_list', integration_prefix_id=transaction.integration.prefix_id)
+            else:
+                messages.error(request, "Please correct the errors below")
+        else:
+            form = TransactionEditForm(instance=transaction)
+        
+        context = {
+            'form': form,
+            'transaction': transaction,
+            'integration': transaction.integration,
+        }
+        
+        return render(request, 'integrations/transaction_edit.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error editing transaction {transaction_prefix_id}: {str(e)}", exc_info=True)
+        messages.error(request, f"Failed to edit transaction: {str(e)}")
+        return redirect('dashboard')
+
+
+@login_required
+def transaction_edit_check(request, transaction_prefix_id):
+    """Check if user can edit transaction and redirect appropriately"""
+    
+    # Check user permissions
+    if not check_user_can_edit_transactions(request.user):
+        messages.warning(request, "Access denied. Only super administrators can edit transactions.")
+        return redirect('dashboard')
+    
+    # Redirect to actual edit view
+    return redirect('transaction_edit', transaction_prefix_id=transaction_prefix_id)
 

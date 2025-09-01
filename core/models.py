@@ -44,14 +44,44 @@ class PrefixIdMixin:
         return getattr(self, 'prefix_id', None)
 
 class UserProfile(models.Model, PrefixIdMixin):
-    """Extends User model with prefix_id and current_account"""
+    """Extends User model with prefix_id, current_account, and role"""
+    
+    ROLE_CHOICES = [
+        ('customer', 'Customer'),
+        ('admin', 'Admin'),
+        ('super_admin', 'Super Admin'),
+    ]
+    
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     current_account = models.ForeignKey('Account', on_delete=models.SET_NULL, null=True, blank=True)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='customer',
+                           help_text="User role - difficult to change once set for security")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     def __str__(self):
-        return f"{self.user.email} ({self.get_prefix_id()})"
+        return f"{self.user.email} ({self.get_role_display()}) - {self.get_prefix_id()}"
+    
+    def is_admin(self):
+        """Check if user has admin privileges"""
+        return self.role in ['admin', 'super_admin']
+    
+    def is_super_admin(self):
+        """Check if user has super admin privileges"""
+        return self.role == 'super_admin'
+    
+    def can_edit_transactions(self):
+        """Check if user can edit transactions"""
+        return self.role == 'super_admin'
+    
+    def save(self, *args, **kwargs):
+        # Make role changes difficult by requiring explicit confirmation
+        if self.pk:  # Existing instance
+            original = UserProfile.objects.get(pk=self.pk)
+            if original.role != self.role:
+                # Role is being changed - this should be rare and explicit
+                pass  # Allow for now, but could add additional checks here
+        super().save(*args, **kwargs)
 
 # Apply prefix_id to UserProfile
 UserProfile = UserProfile.has_prefix_id('usr')

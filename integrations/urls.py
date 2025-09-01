@@ -15,6 +15,10 @@ urlpatterns = [
     path('transactions/<str:transaction_prefix_id>/run-validations/', views.run_transaction_validations, name='run_transaction_validations'),
     path('transactions/<str:transaction_prefix_id>/refresh-status/', views.refresh_transaction_status, name='refresh_transaction_status'),
     
+    # Transaction editing (super_admin only)
+    path('transactions/<str:transaction_prefix_id>/edit/', views.transaction_edit, name='transaction_edit'),
+    path('transactions/<str:transaction_prefix_id>/edit-check/', views.transaction_edit_check, name='transaction_edit_check'),
+    
     # Handle callback when accessed directly from /xero/callback/
     path('', views.xero_callback, name='xero_callback_direct_handler'),
 ]

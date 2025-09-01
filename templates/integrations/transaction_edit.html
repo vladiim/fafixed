@@ -1,0 +1,174 @@
+{% extends "layouts/dashboard_layout.html" %}
+{% load static %}
+
+{% block title %}Edit Transaction {{ transaction.prefix_id }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid" data-controller="transaction-edit">
+    <div class="row">
+        <div class="col-12">
+            <!-- Breadcrumb -->
+            <nav aria-label="breadcrumb" class="mb-4">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+                    <li class="breadcrumb-item">
+                        <a href="{% url 'transaction_list' integration.prefix_id %}">
+                            {{ integration.organization_name }}
+                        </a>
+                    </li>
+                    <li class="breadcrumb-item active" aria-current="page">
+                        Edit {{ transaction.prefix_id }}
+                    </li>
+                </ol>
+            </nav>
+
+            <!-- Warning Banner -->
+            <div class="alert alert-warning d-flex align-items-center mb-4" role="alert">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <div>
+                    <strong>⚠️ Warning:</strong> You are editing transaction data from the source system. 
+                    Changes may affect financial calculations and validation results. 
+                    Only super administrators can perform this action.
+                </div>
+            </div>
+
+            <!-- Transaction Edit Form -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <h4 class="mb-0">Edit Transaction</h4>
+                        <small class="text-muted">{{ transaction.prefix_id }} from {{ integration.organization_name }}</small>
+                    </div>
+                    <div class="text-end">
+                        <span class="badge bg-secondary">{{ transaction.transaction_type|default:"Unknown" }}</span>
+                        <span class="badge bg-info">{{ transaction.status|title }}</span>
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    <!-- Read-only Context Information -->
+                    <div class="row mb-4 bg-light p-3 rounded">
+                        <div class="col-md-6">
+                            <strong>External ID:</strong> {{ transaction.external_transaction_id }}<br>
+                            <strong>External Account:</strong> {{ transaction.external_account_id }}<br>
+                            <strong>Created:</strong> {{ transaction.created_at|date:"M d, Y H:i" }}
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Last Updated:</strong> {{ transaction.updated_at|date:"M d, Y H:i" }}<br>
+                            <strong>Integration:</strong> {{ integration.organization_name }}<br>
+                            <strong>Provider:</strong> {{ integration.provider.display_name }}
+                        </div>
+                    </div>
+
+                    <!-- Edit Form -->
+                    <form method="post" novalidate data-transaction-edit-target="form">
+                        {% csrf_token %}
+                        
+                        <div class="row">
+                            <!-- Amount -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.amount.id_for_label }}" class="form-label">
+                                    Amount <span class="text-danger">*</span>
+                                </label>
+                                {{ form.amount }}
+                                {% if form.amount.help_text %}
+                                    <div class="form-text">{{ form.amount.help_text }}</div>
+                                {% endif %}
+                                {% for error in form.amount.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+
+                            <!-- Date -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.date.id_for_label }}" class="form-label">
+                                    Date <span class="text-danger">*</span>
+                                </label>
+                                {{ form.date }}
+                                {% if form.date.help_text %}
+                                    <div class="form-text">{{ form.date.help_text }}</div>
+                                {% endif %}
+                                {% for error in form.date.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <!-- Reference -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.reference.id_for_label }}" class="form-label">
+                                    Reference
+                                </label>
+                                {{ form.reference }}
+                                {% if form.reference.help_text %}
+                                    <div class="form-text">{{ form.reference.help_text }}</div>
+                                {% endif %}
+                                {% for error in form.reference.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+
+                            <!-- Status -->
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.status.id_for_label }}" class="form-label">
+                                    Status
+                                </label>
+                                {{ form.status }}
+                                {% if form.status.help_text %}
+                                    <div class="form-text">{{ form.status.help_text }}</div>
+                                {% endif %}
+                                {% for error in form.status.errors %}
+                                    <div class="text-danger small">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Contact Name -->
+                        <div class="mb-3">
+                            <label for="{{ form.contact_name.id_for_label }}" class="form-label">
+                                Contact Name
+                            </label>
+                            {{ form.contact_name }}
+                            {% if form.contact_name.help_text %}
+                                <div class="form-text">{{ form.contact_name.help_text }}</div>
+                            {% endif %}
+                            {% for error in form.contact_name.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- Description -->
+                        <div class="mb-3">
+                            <label for="{{ form.description.id_for_label }}" class="form-label">
+                                Description
+                            </label>
+                            {{ form.description }}
+                            {% if form.description.help_text %}
+                                <div class="form-text">{{ form.description.help_text }}</div>
+                            {% endif %}
+                            {% for error in form.description.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="d-flex justify-content-between align-items-center mt-4">
+                            <a href="{% url 'transaction_list' integration.prefix_id %}" 
+                               class="btn btn-secondary">
+                                <i class="fas fa-arrow-left me-1"></i> Back to Transactions
+                            </a>
+                            
+                            <div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-check me-1"></i> Update Transaction
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
