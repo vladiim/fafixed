@@ -91,9 +91,9 @@ class CustomValidationRule(BaseValidationRule):
 
 **Stream Naming Patterns** - Organized real-time channels:
 ```python
-f"transaction_updates_{transaction_id}"  # Per-transaction updates
-f"integration_updates_{integration_id}"  # Per-integration updates  
-f"user_updates_{user_id}"               # Per-user updates
+f"transaction_updates_{transaction.prefix_id}"  # Per-transaction updates
+f"integration_updates_{integration.prefix_id}"  # Per-integration updates  
+f"user_updates_{user.prefix_id}"               # Per-user updates
 ```
 
 **Turbo Frame Architecture** - Targeted DOM updates:
@@ -125,11 +125,11 @@ Follow this pattern to add real-time capabilities to any Django application:
 <!-- Main template with ActionCable connection -->
 <div data-controller="actioncable" 
      data-actioncable-url-value="{{ WEBSOCKET_URL }}"
-     data-actioncable-subscriptions-value='[{"stream_name": "feature_updates_{{ item.id }}"}]'>
+     data-actioncable-subscriptions-value='[{"stream_name": "feature_updates_{{ item.prefix_id }}"}]'>
 </div>
 
 <!-- Real-time updatable content -->
-<turbo-frame id="feature-{{ item.id }}-status">
+<turbo-frame id="feature-{{ item.prefix_id }}-status">
   {% include 'partials/feature_status.html' %}
 </turbo-frame>
 ```
@@ -144,7 +144,7 @@ Follow this pattern to add real-time capabilities to any Django application:
 **Dynamic Status Template:**
 ```html
 <!-- templates/partials/feature_status.html -->
-<turbo-frame id="feature-{{ item.id }}-status">
+<turbo-frame id="feature-{{ item.prefix_id }}-status">
   {% if task_status.running %}
     <!-- Loading State -->
     <div class="status-running">

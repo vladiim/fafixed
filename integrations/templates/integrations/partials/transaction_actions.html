@@ -1,6 +1,6 @@
 {% if transaction %}
 {% load turbo_helper %}
-<turbo-frame id="transaction-{{ transaction.id }}-actions">
+<turbo-frame id="transaction-{{ transaction.prefix_id }}-actions">
     <div class="flex items-center space-x-3">
         <!-- View Button -->
         <button class="text-brand-black hover:text-brand-green transition-colors" 
@@ -17,9 +17,9 @@
                 Refreshing...
             </span>
         {% else %}
-            <form action="{% url 'refresh_transaction_status' transaction.id %}" 
+            <form action="{% url 'refresh_transaction_status' transaction.prefix_id %}" 
                   method="post" 
-                  data-turbo-frame="transaction-{{ transaction.id }}-actions"
+                  data-turbo-frame="transaction-{{ transaction.prefix_id }}-actions"
                   data-controller="refresh-status"
                   data-action="submit->refresh-status#submit"
                   class="inline">
@@ -79,11 +79,11 @@
                     {% endif %}
                     
                     <h4 class="text-sm font-medium text-gray-900 mb-3">Select Validation Rules</h4>
-                    <form action="{% url 'run_transaction_validations' transaction.id %}" 
+                    <form action="{% url 'run_transaction_validations' transaction.prefix_id %}" 
                           method="post" 
                           data-controller="validation-runner"
                           data-action="submit->validation-runner#submit"
-                          data-turbo-frame="transaction-{{ transaction.id }}-actions"
+                          data-turbo-frame="transaction-{{ transaction.prefix_id }}-actions"
                           class="space-y-2">
                         {% csrf_token %}
                         {% for rule_status in transaction.get_validation_rule_statuses %}

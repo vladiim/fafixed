@@ -201,7 +201,7 @@ class Issue(models.Model):
         ordering = ['-last_seen']
 
 
-class TransactionData(models.Model):
+class TransactionData(models.Model, PrefixIdMixin):
     """Stores transaction data from external systems
     Multi-tenanted through: TransactionData → Integration → Account"""
     
@@ -612,3 +612,6 @@ class ValidationRun(models.Model):
 
 # Apply prefix_id to Integration model
 Integration = Integration.has_prefix_id('int')
+
+# Apply prefix_id to TransactionData model
+TransactionData = TransactionData.has_prefix_id('txn')

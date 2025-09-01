@@ -19,7 +19,7 @@ def broadcast_validation_update(sender, instance, **kwargs):
         logger.info(f"⏭️ VALIDATION SIGNAL: Status '{instance.status}' - not broadcasting yet")
         return
     
-    logger.info(f"🔔 VALIDATION SIGNAL: Broadcasting validation result for transaction {instance.transaction_id}")
+    logger.info(f"🔔 VALIDATION SIGNAL: Broadcasting validation result for transaction {instance.transaction.prefix_id}")
     
     try:
         # Render the actual template to get completed validation UI
@@ -37,14 +37,14 @@ def broadcast_validation_update(sender, instance, **kwargs):
         
         # Create turbo stream to replace the transaction frame
         turbo_stream_html = f"""
-        <turbo-stream action="replace" target="transaction-{instance.transaction_id}-actions">
+        <turbo-stream action="replace" target="transaction-{instance.transaction.prefix_id}-actions">
             <template>{template_html}</template>
         </turbo-stream>
         """
         
         # Broadcast validation result via ActionCable
         channel_layer = get_channel_layer()
-        group_name = f"transaction_updates_{instance.transaction_id}"
+        group_name = f"transaction_updates_{instance.transaction.prefix_id}"
         
         async_to_sync(channel_layer.group_send)(
             group_name,

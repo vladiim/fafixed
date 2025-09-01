@@ -508,17 +508,17 @@ def transaction_list(request, integration_prefix_id):
 
 
 @login_required
-def transaction_actions(request, transaction_id):
+def transaction_actions(request, transaction_prefix_id):
     """Get current transaction actions state (for Turbo Frame reloads)"""
     import logging
     logger = logging.getLogger(__name__)
     
-    logger.info(f"Loading transaction actions for transaction {transaction_id}")
+    logger.info(f"Loading transaction actions for transaction {transaction_prefix_id}")
     
     try:
         # First check if transaction exists at all
         try:
-            transaction = TransactionData.objects.get(id=transaction_id)
+            transaction = TransactionData.objects.get(prefix_id=transaction_prefix_id)
         except TransactionData.DoesNotExist:
             return JsonResponse({'error': 'Transaction not found'}, status=404)
         
@@ -541,7 +541,7 @@ def transaction_actions(request, transaction_id):
         })
         
     except Exception as e:
-        logger.error(f"Error fetching transaction actions for transaction {transaction_id}: {str(e)}", exc_info=True)
+        logger.error(f"Error fetching transaction actions for transaction {transaction_prefix_id}: {str(e)}", exc_info=True)
         
         return render(request, 'integrations/partials/transaction_actions.html', {
             'transaction': transaction if 'transaction' in locals() else None,
@@ -551,7 +551,7 @@ def transaction_actions(request, transaction_id):
 
 
 
-def run_transaction_validations(request, transaction_id):
+def run_transaction_validations(request, transaction_prefix_id):
     """Run selected validation rules on a specific transaction"""
     import logging
     logger = logging.getLogger(__name__)
@@ -562,7 +562,7 @@ def run_transaction_validations(request, transaction_id):
     try:
         # First check if transaction exists at all
         try:
-            transaction = TransactionData.objects.get(id=transaction_id)
+            transaction = TransactionData.objects.get(prefix_id=transaction_prefix_id)
         except TransactionData.DoesNotExist:
             return JsonResponse({'error': 'Transaction not found'}, status=404)
         
@@ -572,13 +572,13 @@ def run_transaction_validations(request, transaction_id):
         
         # Get selected rules from form data
         selected_rules = request.POST.getlist('rules')
-        logger.info(f"Running validations for transaction {transaction_id}: {selected_rules}")
+        logger.info(f"Running validations for transaction {transaction_prefix_id}: {selected_rules}")
         
         if not selected_rules:
             # Return Turbo Stream with error message
             return turbo_stream.response(
                 turbo_stream.replace(
-                    f"transaction-{transaction.id}-actions",
+                    f"transaction-{transaction.prefix_id}-actions",
                     template="integrations/partials/transaction_actions.html",
                     context={'transaction': transaction, 'error': 'No validation rules selected'},
                     request=request
@@ -649,7 +649,7 @@ def run_transaction_validations(request, transaction_id):
         # Return immediate Turbo Stream showing "running" state
         return turbo_stream.response(
             turbo_stream.replace(
-                f"transaction-{transaction.id}-actions",
+                f"transaction-{transaction.prefix_id}-actions",
                 template="integrations/partials/transaction_actions.html",
                 context={'transaction': transaction, 'task_id': task_id},  # Show running state
                 request=request
@@ -657,7 +657,7 @@ def run_transaction_validations(request, transaction_id):
         )
         
     except Exception as e:
-        logger.error(f"Error running validations for transaction {transaction_id}: {str(e)}", exc_info=True)
+        logger.error(f"Error running validations for transaction {transaction_prefix_id}: {str(e)}", exc_info=True)
         
         # For 404 errors, return proper HTTP response
         from django.http import Http404
@@ -666,7 +666,7 @@ def run_transaction_validations(request, transaction_id):
         
         return turbo_stream.response(
             turbo_stream.replace(
-                f"transaction-{transaction_id}-actions",
+                f"transaction-{transaction_prefix_id}-actions",
                 template="integrations/partials/transaction_actions.html", 
                 context={
                     'transaction': transaction if 'transaction' in locals() else None,
@@ -681,12 +681,12 @@ def run_transaction_validations(request, transaction_id):
 
 
 @login_required
-def refresh_transaction_status(request, transaction_id):
+def refresh_transaction_status(request, transaction_prefix_id):
     """Refresh transaction status with background job and real-time updates"""
     import logging
     logger = logging.getLogger(__name__)
     
-    logger.info(f"Refresh transaction status called for transaction {transaction_id}")
+    logger.info(f"Refresh transaction status called for transaction {transaction_prefix_id}")
     
     if request.method != 'POST':
         return JsonResponse({'error': 'POST method required'}, status=405)
@@ -695,11 +695,11 @@ def refresh_transaction_status(request, transaction_id):
         # Get transaction with user access check
         transaction = get_object_or_404(
             TransactionData,
-            id=transaction_id,
+            prefix_id=transaction_prefix_id,
             integration__account__account_users__user=request.user
         )
         
-        logger.info(f"Found transaction {transaction_id}, updating timestamp")
+        logger.info(f"Found transaction {transaction_prefix_id}, updating timestamp")
         
         # Update transaction directly to test WebSocket
         try:
@@ -713,7 +713,7 @@ def refresh_transaction_status(request, transaction_id):
             transaction.updated_at = timezone.now()
             transaction.save()
             
-            logger.info(f"Updated transaction {transaction_id} timestamp")
+            logger.info(f"Updated transaction {transaction_prefix_id} timestamp")
             
             task_id = "direct_update"  # Fake task ID
         except Exception as update_error:
@@ -721,10 +721,10 @@ def refresh_transaction_status(request, transaction_id):
             task_id = None
         
         # Return Turbo Stream response showing "refreshing" state
-        logger.info(f"Returning Turbo Stream response for transaction {transaction_id}")
+        logger.info(f"Returning Turbo Stream response for transaction {transaction_prefix_id}")
         return turbo_stream.response(
             turbo_stream.replace(
-                f"transaction-{transaction.id}-actions",
+                f"transaction-{transaction.prefix_id}-actions",
                 template="integrations/partials/transaction_actions.html",
                 context={'transaction': transaction, 'refresh_task_id': task_id},
                 request=request
@@ -732,10 +732,10 @@ def refresh_transaction_status(request, transaction_id):
         )
         
     except Exception as e:
-        logger.error(f"Error refreshing transaction {transaction_id}: {str(e)}", exc_info=True)
+        logger.error(f"Error refreshing transaction {transaction_prefix_id}: {str(e)}", exc_info=True)
         return turbo_stream.response(
             turbo_stream.replace(
-                f"transaction-{transaction_id}-actions",
+                f"transaction-{transaction_prefix_id}-actions",
                 template="integrations/partials/transaction_actions.html", 
                 context={
                     'transaction': transaction if 'transaction' in locals() else None,

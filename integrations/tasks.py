@@ -224,22 +224,22 @@ def run_validation_rules(self, integration_id, rule_names=None, triggered_by='ma
 
 
 @shared_task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 2, 'countdown': 30})
-def run_transaction_validations(self, transaction_id, rule_names):
+def run_transaction_validations(self, transaction_prefix_id, rule_names):
     """
     Run validation rules on a specific transaction
     
     Args:
-        transaction_id: ID of the transaction to validate
+        transaction_prefix_id: Prefix ID of the transaction to validate
         rule_names: List of rule names to run
     """
-    logger.info(f"Running validation rules {rule_names} on transaction {transaction_id}")
+    logger.info(f"Running validation rules {rule_names} on transaction {transaction_prefix_id}")
     
     try:
         # Get the transaction
-        transaction = TransactionData.objects.get(id=transaction_id)
+        transaction = TransactionData.objects.get(prefix_id=transaction_prefix_id)
         
         results = {
-            "transaction_id": transaction_id,
+            "transaction_prefix_id": transaction_prefix_id,
             "rules_run": 0,
             "rules_passed": 0,
             "rules_failed": 0,
@@ -257,7 +257,7 @@ def run_transaction_validations(self, transaction_id, rule_names):
                 
                 # Mark as running
                 validation_status.mark_running()
-                logger.info(f"Running rule {rule_name} on transaction {transaction_id}")
+                logger.info(f"Running rule {rule_name} on transaction {transaction_prefix_id}")
                 
                 # Get the rule instance
                 rule_instance = ValidationRuleRegistry.get_rule(rule_name)
@@ -269,11 +269,12 @@ def run_transaction_validations(self, transaction_id, rule_names):
                     'passed': True,  # Simulate passing
                     'issues_found': 0,
                     'severity': 'info',
-                    'details': f"Rule {rule_name} executed successfully on transaction {transaction_id}"
+                    'details': f"Rule {rule_name} executed successfully on transaction {transaction_prefix_id}"
                 }
                 
                 # For demonstration, let's make duplicate_transactions sometimes fail
-                if rule_name == 'duplicate_transactions' and transaction_id % 2 == 0:
+                # Use transaction.id for the modulo since we need a numeric value for the demo
+                if rule_name == 'duplicate_transactions' and transaction.id % 2 == 0:
                     rule_result = {
                         'passed': False,
                         'issues_found': 2,
@@ -298,10 +299,10 @@ def run_transaction_validations(self, transaction_id, rule_names):
                     results["rules_failed"] += 1
                     results["total_issues"] += rule_result['issues_found']
                 
-                logger.info(f"Completed rule {rule_name} on transaction {transaction_id}: {'PASSED' if rule_result['passed'] else 'FAILED'}")
+                logger.info(f"Completed rule {rule_name} on transaction {transaction_prefix_id}: {'PASSED' if rule_result['passed'] else 'FAILED'}")
                 
             except TransactionValidationStatus.DoesNotExist:
-                error_msg = f"ValidationStatus not found for transaction {transaction_id}, rule {rule_name}"
+                error_msg = f"ValidationStatus not found for transaction {transaction_prefix_id}, rule {rule_name}"
                 results["errors"].append(error_msg)
                 logger.error(error_msg)
                 continue
@@ -326,18 +327,18 @@ def run_transaction_validations(self, transaction_id, rule_names):
         return results
         
     except TransactionData.DoesNotExist:
-        error_msg = f"Transaction {transaction_id} not found"
+        error_msg = f"Transaction {transaction_prefix_id} not found"
         logger.error(error_msg)
         raise Exception(error_msg)
         
     except Exception as e:
-        error_msg = f"Failed to run validations on transaction {transaction_id}: {str(e)}"
+        error_msg = f"Failed to run validations on transaction {transaction_prefix_id}: {str(e)}"
         logger.error(error_msg, exc_info=True)
         raise
 
 
 @shared_task(bind=True)
-def refresh_transaction_status_task(self, transaction_id):
+def refresh_transaction_status_task(self, transaction_prefix_id):
     """Simple task to update transaction's updated_at timestamp"""
     import logging
     import time
@@ -345,14 +346,14 @@ def refresh_transaction_status_task(self, transaction_id):
     
     logger = logging.getLogger(__name__)
     
-    logger.info(f"Starting refresh for transaction {transaction_id}")
+    logger.info(f"Starting refresh for transaction {transaction_prefix_id}")
     
     try:
         # Get the transaction
         from .models import TransactionData
-        transaction = TransactionData.objects.get(id=transaction_id)
+        transaction = TransactionData.objects.get(prefix_id=transaction_prefix_id)
         
-        logger.info(f"Found transaction {transaction_id}, processing...")
+        logger.info(f"Found transaction {transaction_prefix_id}, processing...")
         
         # Simulate some work
         time.sleep(2)
@@ -361,22 +362,22 @@ def refresh_transaction_status_task(self, transaction_id):
         transaction.updated_at = timezone.now()
         transaction.save()
         
-        logger.info(f"Updated transaction {transaction_id} timestamp")
+        logger.info(f"Updated transaction {transaction_prefix_id} timestamp")
         
         # The model save will trigger django-lifecycle hooks which will broadcast the update
         return {
-            "transaction_id": transaction_id,
+            "transaction_prefix_id": transaction_prefix_id,
             "status": "completed",
             "new_timestamp": str(transaction.updated_at)
         }
         
     except TransactionData.DoesNotExist:
-        error_msg = f"Transaction {transaction_id} not found"
+        error_msg = f"Transaction {transaction_prefix_id} not found"
         logger.error(error_msg)
         raise Exception(error_msg)
         
     except Exception as e:
-        error_msg = f"Failed to refresh transaction {transaction_id}: {str(e)}"
+        error_msg = f"Failed to refresh transaction {transaction_prefix_id}: {str(e)}"
         logger.error(error_msg, exc_info=True)
         raise
 
