@@ -119,53 +119,17 @@ class ValidationEngine:
     @classmethod
     def _create_issue_from_result(cls, integration: Integration, result: ValidationResult) -> Issue:
         """
-        Create an Issue record from a ValidationResult.
+        Create or update an Issue record from a ValidationResult using the new aggregation system.
         
         Args:
             integration: Integration the issue relates to
             result: ValidationResult containing issue details
             
         Returns:
-            Issue: Created issue record
+            Issue: Created or updated issue record
         """
-        # Map validation categories to issue categories
-        category_mapping = {
-            'duplicate_transactions': 'duplicate_transactions',
-            'missing_data': 'missing_data',
-            'inconsistent_categories': 'inconsistent_categories',
-            'date_anomalies': 'date_anomalies',
-            'amount_discrepancies': 'amount_discrepancies',
-            'tax_code_errors': 'tax_code_errors',
-        }
-        
-        category = category_mapping.get(result.rule_name, 'missing_data')
-        
-        # Check if similar issue already exists
-        existing_issue = Issue.objects.filter(
-            integration=integration,
-            category=category,
-            status='open'
-        ).first()
-        
-        if existing_issue:
-            # Update existing issue
-            existing_issue.count += 1
-            existing_issue.last_seen = timezone.now()
-            existing_issue.description = result.description
-            existing_issue.affected_transactions = result.affected_transactions
-            existing_issue.save()
-            return existing_issue
-        else:
-            # Create new issue
-            issue = Issue.objects.create(
-                integration=integration,
-                title=result.title,
-                description=result.description,
-                category=category,
-                severity=result.severity.value,
-                affected_transactions=result.affected_transactions
-            )
-            return issue
+        # Use the new IssueManager for proper aggregation with account + chart scoping
+        return Issue.objects.create_or_update_issue(integration, result)
     
     @classmethod
     def _create_results_summary(cls, results: List[ValidationResult]) -> Dict[str, Any]:

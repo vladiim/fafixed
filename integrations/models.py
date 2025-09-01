@@ -160,7 +160,166 @@ class IntegrationSync(models.Model):
     class Meta:
         ordering = ['-started_at']
 
-class Issue(models.Model):
+class IssueManager(models.Manager):
+    """Custom manager for Issue model with proper aggregation logic"""
+    
+    def create_or_update_issue(self, integration, validation_result):
+        """
+        Create a new issue or update an existing one within the proper scope.
+        
+        Scoping rules:
+        1. Issues are scoped to the same Account (via integration.account)
+        2. Issues are scoped to the same chart of accounts (via integration.external_account_id)
+        3. Issues are grouped by rule name and severity within that scope
+        
+        Args:
+            integration: Integration instance (provides account + chart scope)
+            validation_result: ValidationResult from validation rule
+            
+        Returns:
+            Issue: Created or updated issue record
+        """
+        # Generate issue key for this specific scope
+        issue_key = self._generate_issue_key(integration, validation_result)
+        
+        # Look for existing open issue within the same scope
+        existing_issue = self.filter(
+            integration__account=integration.account,  # Same account (tenant)
+            integration__external_account_id=integration.external_account_id,  # Same chart of accounts
+            issue_key=issue_key,  # Same issue type grouping
+            status='open'
+        ).first()
+        
+        if existing_issue:
+            # Update existing issue with new occurrence
+            return self._update_existing_issue(existing_issue, validation_result)
+        else:
+            # Create new issue
+            return self._create_new_issue(integration, validation_result, issue_key)
+    
+    def _generate_issue_key(self, integration, validation_result):
+        """Generate a scoped issue key for grouping similar issues"""
+        # Key format: account_id:external_account_id:rule_name:severity
+        # This ensures issues are only grouped within the same tenant + chart scope
+        return f"{integration.account.id}:{integration.external_account_id}:{validation_result.rule_name}:{validation_result.severity.value}"
+    
+    def _update_existing_issue(self, existing_issue, validation_result):
+        """Update an existing issue with new occurrence data"""
+        from django.utils import timezone
+        import uuid
+        
+        # Generate unique occurrence ID  
+        occurrence_id = str(uuid.uuid4())
+        
+        # Add to occurrence tracking
+        existing_issue.occurrence_ids.append(occurrence_id)
+        existing_issue.latest_occurrence = {
+            'id': occurrence_id,
+            'timestamp': timezone.now().isoformat(),
+            'metadata': validation_result.metadata or {}
+        }
+        
+        # Update aggregated fields
+        existing_issue.count += 1
+        existing_issue.last_seen = timezone.now()
+        existing_issue.description = validation_result.description  # Update with latest description
+        
+        # Serialize affected transactions to ensure JSON compatibility
+        serialized_transactions = self._serialize_affected_transactions(
+            validation_result.affected_transactions
+        )
+        existing_issue.affected_transactions = serialized_transactions  # Latest affected transactions
+        
+        existing_issue.save()
+        return existing_issue
+    
+    def _create_new_issue(self, integration, validation_result, issue_key):
+        """Create a new issue record"""
+        from django.utils import timezone
+        import uuid
+        
+        # Generate unique occurrence ID for first occurrence
+        occurrence_id = str(uuid.uuid4())
+        
+        # Use rule name directly as category - no more duplication!
+        category = validation_result.rule_name
+        
+        # Serialize affected transactions to ensure JSON compatibility
+        serialized_transactions = self._serialize_affected_transactions(
+            validation_result.affected_transactions
+        )
+        
+        # Create new issue
+        issue = self.create(
+            integration=integration,
+            title=validation_result.title,
+            description=validation_result.description,
+            category=category,  # Use rule name directly
+            severity=validation_result.severity.value,
+            status='open',
+            count=1,
+            affected_transactions=serialized_transactions,
+            issue_key=issue_key,
+            occurrence_ids=[occurrence_id],
+            latest_occurrence={
+                'id': occurrence_id,
+                'timestamp': timezone.now().isoformat(),
+                'metadata': validation_result.metadata or {}
+            }
+        )
+        
+        return issue
+    
+    def get_issues_for_account(self, account):
+        """Get all issues scoped to a specific account"""
+        return self.filter(integration__account=account)
+    
+    def get_issues_for_chart(self, integration):
+        """Get all issues scoped to a specific chart of accounts"""
+        return self.filter(
+            integration__account=integration.account,
+            integration__external_account_id=integration.external_account_id
+        )
+    
+    def _serialize_affected_transactions(self, affected_transactions):
+        """
+        Convert affected_transactions data to JSON-serializable format.
+        
+        Handles Decimal types and other non-serializable data from validation results.
+        
+        Args:
+            affected_transactions: Raw data from ValidationResult
+            
+        Returns:
+            JSON-serializable version of the same data
+        """
+        if not affected_transactions:
+            return []
+        
+        from decimal import Decimal
+        import json
+        
+        def make_serializable(obj):
+            """Recursively convert non-serializable types to serializable ones"""
+            if isinstance(obj, Decimal):
+                return float(obj)
+            elif isinstance(obj, dict):
+                return {key: make_serializable(value) for key, value in obj.items()}
+            elif isinstance(obj, list):
+                return [make_serializable(item) for item in obj]
+            else:
+                # For other types, try JSON serialization to check if they're already OK
+                try:
+                    json.dumps(obj)
+                    return obj
+                except (TypeError, ValueError):
+                    # If it fails, convert to string as fallback
+                    return str(obj)
+        
+        return make_serializable(affected_transactions)
+
+
+class Issue(models.Model, PrefixIdMixin):
     SEVERITY_CHOICES = [
         ('low', 'Low'),
         ('medium', 'Medium'),
@@ -174,19 +333,14 @@ class Issue(models.Model):
         ('ignored', 'Ignored'),
     ]
     
-    CATEGORY_CHOICES = [
-        ('duplicate_transactions', 'Duplicate Transactions'),
-        ('missing_data', 'Missing Data'),
-        ('inconsistent_categories', 'Inconsistent Categories'),
-        ('date_anomalies', 'Date Anomalies'),
-        ('amount_discrepancies', 'Amount Discrepancies'),
-        ('tax_code_errors', 'Tax Code Errors'),
-    ]
+    # Use custom manager for aggregation logic
+    objects = IssueManager()
     
     integration = models.ForeignKey(Integration, on_delete=models.CASCADE, related_name='issues')
     title = models.CharField(max_length=300)
     description = models.TextField()
-    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES)
+    category = models.CharField(max_length=50, db_index=True, 
+                               help_text="Category based on validation rule name")
     severity = models.CharField(max_length=20, choices=SEVERITY_CHOICES, default='medium')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='open')
     first_seen = models.DateTimeField(auto_now_add=True)
@@ -194,11 +348,60 @@ class Issue(models.Model):
     count = models.PositiveIntegerField(default=1)
     affected_transactions = models.JSONField(default=list, blank=True)
     
+    # Enhanced aggregation and resolution tracking fields
+    issue_key = models.CharField(max_length=64, db_index=True, blank=True, 
+                                help_text="Key for grouping similar issues within account+chart scope")
+    occurrence_ids = models.JSONField(default=list, blank=True,
+                                     help_text="List of individual occurrence IDs")
+    latest_occurrence = models.JSONField(default=dict, blank=True,
+                                        help_text="Most recent occurrence details")
+    resolution_notes = models.TextField(blank=True)
+    resolved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    
+    def mark_occurrence_resolved(self, occurrence_id, user):
+        """Mark individual occurrence as resolved"""
+        if occurrence_id in self.occurrence_ids:
+            self.occurrence_ids.remove(occurrence_id)
+            
+            # If no more occurrences, mark issue as resolved
+            if not self.occurrence_ids:
+                self.status = 'resolved'
+                self.resolved_by = user
+                self.resolved_at = timezone.now()
+            
+            self.save()
+    
+    def get_unresolved_count(self):
+        """Get count of unresolved individual occurrences"""
+        return len(self.occurrence_ids)
+    
+    def get_category_display_name(self):
+        """Get human-readable category name based on validation rule"""
+        # Convert rule names to human-readable format
+        return self.category.replace('_', ' ').title()
+    
+    def save(self, *args, **kwargs):
+        """Override save to generate issue_key if not provided"""
+        if not self.issue_key:
+            # Generate scoped issue key: account_id:external_account_id:category:severity
+            self.issue_key = f"{self.integration.account.id}:{self.integration.external_account_id}:{self.category}:{self.severity}"
+        super().save(*args, **kwargs)
+    
     def __str__(self):
         return f"{self.title} ({self.integration.organization_name})"
     
     class Meta:
         ordering = ['-last_seen']
+        indexes = [
+            models.Index(fields=['integration', 'status', 'category']),
+            models.Index(fields=['issue_key']),
+            models.Index(fields=['integration', 'category', 'status']),
+        ]
+
+
+# Apply prefix_id decorator to Issue model
+Issue = Issue.has_prefix_id('iss')
 
 
 class TransactionData(models.Model, PrefixIdMixin):

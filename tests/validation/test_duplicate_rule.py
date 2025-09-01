@@ -5,7 +5,6 @@ Tests for DuplicateTransactionRule.
 import pytest
 from decimal import Decimal
 from datetime import date, timedelta
-from django.test import TestCase
 from django.contrib.auth.models import User
 
 from core.models import Account
@@ -13,32 +12,36 @@ from integrations.models import Integration, IntegrationProvider, TransactionDat
 from integrations.validation.rules.duplicates import DuplicateTransactionRule
 from integrations.validation.base import ValidationSeverity
 from integrations.validation.registry import ValidationRuleRegistry
+from .base_validation_test import BaseValidationTestCase
 
 
-class TestDuplicateTransactionRule(TestCase):
+class TestDuplicateTransactionRule(BaseValidationTestCase):
     """Test cases for DuplicateTransactionRule."""
     
     def setUp(self):
         """Set up test data."""
-        # Clear registry to ensure clean state
-        ValidationRuleRegistry.clear_registry()
+        super().setUp()  # This handles cleanup but doesn't clear registry
+        
+        # Create unique test ID to avoid conflicts
+        import uuid
+        test_id = str(uuid.uuid4())[:8]
         
         # Create test user and account
         self.user = User.objects.create_user(
-            username='testuser',
-            email='test@example.com',
+            username=f'testuser_dup_{test_id}',
+            email=f'test_dup_{test_id}@example.com',
             password='testpass123'
         )
         
         self.account = Account.objects.create(
-            name='Test Account',
+            name=f'Test Account Dup {test_id}',
             account_type='organization'
         )
         
         # Create integration provider
         self.provider = IntegrationProvider.objects.create(
-            name='test_xero',
-            display_name='Test Xero',
+            name=f'test_xero_dup_{test_id}',
+            display_name=f'Test Xero Dup {test_id}',
             provider_type='xero',
             auth_url_template='https://test.xero.com/auth',
             token_url='https://test.xero.com/token'
@@ -49,15 +52,13 @@ class TestDuplicateTransactionRule(TestCase):
             account=self.account,
             provider=self.provider,
             created_by=self.user,
-            external_account_id='test_account_123',
-            external_account_name='Test Xero Account',
-            organization_name='Test Organization',
+            external_account_id=f'test_account_dup_{test_id}',
+            external_account_name=f'Test Xero Account Dup {test_id}',
+            organization_name=f'Test Organization Dup {test_id}',
             status='active'
         )
         
-    def tearDown(self):
-        """Clean up after tests."""
-        ValidationRuleRegistry.clear_registry()
+    # tearDown is handled by base class - no need to clear registry
     
     def test_rule_initialization(self):
         """Test rule initialization and configuration."""
@@ -379,17 +380,18 @@ class TestDuplicateTransactionRule(TestCase):
         self.assertIn('error', result.metadata)
 
 
-class TestDuplicateRuleRegistration(TestCase):
+class TestDuplicateRuleRegistration(BaseValidationTestCase):
     """Test DuplicateTransactionRule registration."""
     
     def setUp(self):
-        ValidationRuleRegistry.clear_registry()
-        # Manually register the rule for testing
-        from integrations.validation.rules.duplicates import DuplicateTransactionRule
-        ValidationRuleRegistry.register(DuplicateTransactionRule)
+        super().setUp()  # This handles cleanup
+        # The rule should already be registered from module import
+        # If not, manually register it
+        if not ValidationRuleRegistry.is_registered('duplicate_transactions'):
+            from integrations.validation.rules.duplicates import DuplicateTransactionRule
+            ValidationRuleRegistry.register(DuplicateTransactionRule)
     
-    def tearDown(self):
-        ValidationRuleRegistry.clear_registry()
+    # tearDown is handled by base class
     
     def test_rule_registration(self):
         """Test that the rule registers itself properly."""
