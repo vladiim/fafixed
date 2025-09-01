@@ -39,33 +39,13 @@ def xero_connect(request):
     logger.info(f"Current account: {current_account.name} (ID: {current_account.id})")
     
     try:
-        # Check if any integration already exists for this account/provider combo
-        existing_integration = Integration.objects.filter(
+        # Always create a new integration to allow multiple integrations per account
+        logger.info("Creating new Xero integration...")
+        integration = IntegrationManager.create_integration(
             account=current_account,
-            provider__name='xero'
-        ).first()
-        
-        if existing_integration:
-            if existing_integration.status == 'active':
-                logger.info(f"Active Xero integration found: {existing_integration.id}")
-                messages.info(request, "Xero integration already exists for this account.")
-                return redirect('dashboard')
-            else:
-                # Reuse existing expired/error integration for reconnection
-                logger.info(f"Reusing existing integration for reconnection: {existing_integration.id} (Status: {existing_integration.status})")
-                integration = existing_integration
-                # Reset integration status for reconnection
-                integration.status = 'pending'
-                integration.last_error = None
-                integration.save()
-        else:
-            logger.info("Creating new Xero integration...")
-            # Create new integration
-            integration = IntegrationManager.create_integration(
-                account=current_account,
-                provider_name='xero',
-                created_by=request.user
-            )
+            provider_name='xero',
+            created_by=request.user
+        )
         
         logger.info(f"Using integration: {integration.id}")
         

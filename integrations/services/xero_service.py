@@ -236,7 +236,26 @@ class XeroIntegrationService(BaseIntegrationService):
                 self.integration.external_account_id = tenant_id  # Store tenant ID
                 self.integration.organization_name = org.name
                 self.integration.external_account_name = org.legal_name or org.name
-                self.integration.save()
+                
+                try:
+                    self.integration.save()
+                except Exception as save_error:
+                    # Check if this is a duplicate integration error
+                    if 'unique constraint' in str(save_error).lower() or 'duplicate key' in str(save_error).lower():
+                        # This Xero organization is already connected to this account
+                        logger.warning(f"Attempted to create duplicate integration for Xero org '{org.name}' (tenant: {tenant_id}) for account {self.integration.account.id}")
+                        
+                        # Clean up the orphaned integration record since it failed to save
+                        try:
+                            self.integration.delete()
+                        except:
+                            pass  # Best effort cleanup
+                        
+                        raise Exception(f"This Xero organization ('{org.name}') is already connected to your account. Please use a different Xero organization.")
+                    else:
+                        # Some other save error
+                        logger.error(f"Error saving integration details: {save_error}")
+                        raise Exception(f"Unable to save Xero connection details: {str(save_error)}")
                 
                 logger.info(f"Successfully connected to Xero org: {org.name} (Tenant ID: {tenant_id})")
                 

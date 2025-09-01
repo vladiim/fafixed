@@ -102,6 +102,16 @@
                             </a>
                         </div>
                         {% endfor %}
+                        
+                        <!-- Add Account Button -->
+                        <div class="mt-4 pt-4 border-t border-gray-200">
+                            <a href="{% url 'xero_connect' %}" 
+                               class="flex items-center justify-center w-full p-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-brand-green hover:bg-brand-green hover:bg-opacity-5 transition-colors group" 
+                               data-turbo="false">
+                                <i class="fas fa-plus text-gray-400 group-hover:text-brand-green mr-2"></i>
+                                <span class="text-sm font-medium text-gray-600 group-hover:text-brand-green">Add Account</span>
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
