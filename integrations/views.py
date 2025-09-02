@@ -970,3 +970,85 @@ def bulk_resolve_issues(request):
     
     return redirect('dashboard')
 
+
+@login_required
+def issue_detail(request, issue_prefix_id):
+    """
+    Display detailed view for a specific issue with resolution workflow.
+    
+    Designed for accountants to efficiently resolve duplicate transactions
+    and other validation issues with full context and external links.
+    """
+    from django.shortcuts import get_object_or_404
+    
+    # Get user's current account for multi-tenant filtering
+    current_account = None
+    if hasattr(request.user, 'profile') and request.user.profile.current_account:
+        current_account = request.user.profile.current_account
+    
+    if not current_account:
+        messages.error(request, "No account selected")
+        return redirect('dashboard')
+    
+    # Get the issue, ensuring it belongs to the user's current account
+    issue = get_object_or_404(
+        Issue, 
+        prefix_id=issue_prefix_id,
+        integration__account=current_account
+    )
+    
+    # Parse affected transactions data 
+    # The affected_transactions field contains duplicate groups with transaction details
+    duplicate_groups = issue.affected_transactions if issue.affected_transactions else []
+    
+    # Add transaction objects for each transaction ID in the groups
+    enhanced_groups = []
+    for group in duplicate_groups:
+        enhanced_group = group.copy()
+        
+        # Get actual transaction objects for additional context
+        transaction_objects = []
+        if 'transactions' in group:
+            transaction_ids = [txn['id'] for txn in group['transactions']]
+            transactions_qs = TransactionData.objects.filter(
+                id__in=transaction_ids,
+                integration__account=current_account  # Ensure multi-tenant isolation
+            ).select_related('integration')
+            
+            # Create enhanced transaction data combining stored and live data
+            for stored_txn in group['transactions']:
+                # Find matching live transaction object
+                live_txn = None
+                for txn_obj in transactions_qs:
+                    if txn_obj.id == stored_txn['id']:
+                        live_txn = txn_obj
+                        break
+                
+                if live_txn:
+                    enhanced_txn = {
+                        **stored_txn,  # Use stored data from issue
+                        'live_object': live_txn,  # Add live object for additional context
+                        'integration_prefix_id': live_txn.integration.prefix_id,
+                        'external_url': live_txn.external_url,
+                        'needs_review': True  # Default status for Phase 1
+                    }
+                    transaction_objects.append(enhanced_txn)
+            
+            enhanced_group['enhanced_transactions'] = transaction_objects
+            
+        enhanced_groups.append(enhanced_group)
+    
+    # Calculate resolution progress
+    total_transactions = sum(len(group.get('transactions', [])) for group in duplicate_groups)
+    resolved_transactions = 0  # For Phase 1, none are resolved yet
+    
+    context = {
+        'issue': issue,
+        'duplicate_groups': enhanced_groups,
+        'total_transactions': total_transactions,
+        'resolved_transactions': resolved_transactions,
+        'resolution_progress_percent': 0 if total_transactions == 0 else int((resolved_transactions / total_transactions) * 100),
+    }
+    
+    return render(request, 'integrations/issue_detail.html', context)
+

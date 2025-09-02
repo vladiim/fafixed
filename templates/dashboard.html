@@ -228,23 +228,27 @@
                         <!-- Issues List -->
                         <div class="divide-y divide-gray-200">
                         {% for issue in issues %}
-                        <div class="p-6 hover:bg-gray-50">
-                            <div class="flex items-start space-x-4">
-                                <!-- Checkbox (only for active issues) -->
-                                {% if 'active' in current_issue_filters %}
-                                <div class="flex items-center">
-                                    <input type="checkbox" 
-                                           name="issue_ids" 
-                                           value="{{ issue.prefix_id }}" 
-                                           data-bulk-action-target="item"
-                                           data-action="change->bulk-action#itemChanged"
-                                           class="h-4 w-4 text-brand-green focus:ring-brand-green border-gray-300 rounded">
-                                </div>
-                                {% else %}
-                                <div class="w-4"></div> <!-- Spacer when no checkbox -->
-                                {% endif %}
+                        <div class="relative group">
+                            <!-- Clickable overlay for entire row -->
+                            <a href="{% url 'issue_detail' issue.prefix_id %}" class="absolute inset-0 z-10"></a>
                             
-                            <div class="flex-1">
+                            <div class="p-6 hover:bg-gray-50 transition-colors">
+                                <div class="flex items-start space-x-4">
+                                    <!-- Checkbox (only for active issues) -->
+                                    {% if 'active' in current_issue_filters %}
+                                    <div class="flex items-center relative z-20">
+                                        <input type="checkbox" 
+                                               name="issue_ids" 
+                                               value="{{ issue.prefix_id }}" 
+                                               data-bulk-action-target="item"
+                                               data-action="change->bulk-action#itemChanged"
+                                               class="h-4 w-4 text-brand-green focus:ring-brand-green border-gray-300 rounded">
+                                    </div>
+                                    {% else %}
+                                    <div class="w-4"></div> <!-- Spacer when no checkbox -->
+                                    {% endif %}
+                                
+                                <div class="flex-1">
                                 <div class="flex items-center mb-2">
                                     <!-- Severity badge -->
                                     {% if issue.severity == 'critical' %}
@@ -296,10 +300,11 @@
                                 </div>
                             </div>
                             
-                            <div class="ml-4 flex-shrink-0">
-                                <button class="text-gray-400 hover:text-brand-black">
-                                    <i class="fas fa-chevron-right"></i>
-                                </button>
+                                <div class="ml-4 flex-shrink-0">
+                                    <div class="text-gray-400 group-hover:text-brand-black transition-colors">
+                                        <i class="fas fa-chevron-right"></i>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -21,6 +21,7 @@ urlpatterns = [
     path('transactions/<str:transaction_prefix_id>/edit-check/', views.transaction_edit_check, name='transaction_edit_check'),
     
     # Issue management
+    path('issues/<str:issue_prefix_id>/', views.issue_detail, name='issue_detail'),
     path('issues/<str:issue_prefix_id>/resolve/', views.resolve_issue, name='resolve_issue'),
     path('issues/bulk-resolve/', views.bulk_resolve_issues, name='bulk_resolve_issues'),
     
