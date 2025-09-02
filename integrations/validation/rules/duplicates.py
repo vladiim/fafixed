@@ -29,8 +29,8 @@ class DuplicateTransactionRule(BaseValidationRule):
         
         # Default matching criteria - can be overridden in config
         default_config = {
-            'match_fields': ['amount', 'date', 'reference'],  # Fields to match on
-            'ignore_empty_reference': True,  # Don't match on empty/null references
+            'match_fields': ['amount', 'date', 'contact_name'],  # Fields to match on
+            'ignore_empty_reference': False,  # Not matching on reference anymore
             'ignore_pending_status': True,  # Ignore transactions with 'pending' status
             'minimum_duplicates': 2,  # Minimum number of matching transactions to flag
             'date_tolerance_days': 0,  # Allow date differences within N days

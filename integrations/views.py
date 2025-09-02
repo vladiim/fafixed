@@ -159,12 +159,12 @@ def test_integration(request, integration_id):
 
 
 @login_required
-def revoke_integration(request, integration_id):
+def revoke_integration(request, integration_prefix_id):
     """Revoke an integration"""
     try:
         integration = get_object_or_404(
             Integration,
-            id=integration_id,
+            prefix_id=integration_prefix_id,
             account__account_users__user=request.user
         )
         
@@ -595,30 +595,48 @@ def run_transaction_validations(request, transaction_prefix_id):
         import threading
         
         def run_validations_background():
-            """Background validation work (simulates Celery task)"""
+            """Background validation work - runs actual validation rules"""
             try:
+                from .validation.engine import ValidationEngine
+                from .validation.registry import ValidationRuleRegistry
                 import time
                 
-                # Simulate validation work
-                time.sleep(2)
+                # Simulate brief loading time
+                time.sleep(1)
                 
                 # Process each validation rule
                 for status in validation_statuses:
                     # Mark as running
                     status.mark_running()
                     
-                    # Simulate validation result
-                    import random
-                    passed = random.choice([True, False])
-                    issues_found = 0 if passed else random.randint(1, 3)
-                    
-                    # Mark as completed (this will trigger the validation signal via ActionCable)
-                    status.mark_completed(
-                        passed=passed,
-                        issues_found=issues_found,
-                        severity='info' if passed else 'warning',
-                        result_data={'simulated': True, 'rule': status.rule_name}
-                    )
+                    try:
+                        # Get the actual rule and run it on the integration
+                        rule_name = status.rule_name
+                        integration = transaction.integration
+                        
+                        logger.info(f"Running actual validation rule {rule_name} on integration {integration.organization_name}")
+                        
+                        # Run the actual validation rule
+                        result = ValidationEngine.run_single_rule(integration, rule_name)
+                        
+                        # Mark as completed with real results
+                        status.mark_completed(
+                            passed=result.passed,
+                            issues_found=1 if not result.passed else 0,
+                            severity=result.severity.value if result.severity else 'info',
+                            result_data={
+                                'rule_name': result.rule_name,
+                                'title': result.title,
+                                'description': result.description,
+                                'metadata': result.metadata or {}
+                            }
+                        )
+                        
+                        logger.info(f"Completed rule {rule_name}: {'PASSED' if result.passed else 'FAILED'}")
+                        
+                    except Exception as rule_error:
+                        logger.error(f"❌ VALIDATION: Failed to run rule {status.rule_name}: {rule_error}")
+                        status.mark_failed(str(rule_error))
                 
             except Exception as validation_error:
                 logger.error(f"❌ VALIDATION: Failed to run background validations: {validation_error}")
@@ -748,8 +766,13 @@ def transaction_edit(request, transaction_prefix_id):
         )
         
         if request.method == 'POST':
+            logger.info(f"POST request received for transaction {transaction_prefix_id}")
+            logger.info(f"POST data: {request.POST}")
+            
             form = TransactionEditForm(request.POST, instance=transaction)
             if form.is_valid():
+                logger.info("Form is valid, proceeding with save")
+                
                 # Store original values for audit
                 original_data = {
                     'amount': transaction.amount,
@@ -772,6 +795,8 @@ def transaction_edit(request, transaction_prefix_id):
                 messages.success(request, f"Transaction {transaction.prefix_id} updated successfully")
                 return redirect('transaction_list', integration_prefix_id=transaction.integration.prefix_id)
             else:
+                logger.error(f"Form validation failed for transaction {transaction_prefix_id}")
+                logger.error(f"Form errors: {form.errors}")
                 messages.error(request, "Please correct the errors below")
         else:
             form = TransactionEditForm(instance=transaction)
@@ -801,4 +826,147 @@ def transaction_edit_check(request, transaction_prefix_id):
     
     # Redirect to actual edit view
     return redirect('transaction_edit', transaction_prefix_id=transaction_prefix_id)
+
+
+@login_required
+def delete_integration(request, integration_prefix_id):
+    """Delete an integration and all its associated data"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"Integration deletion requested for {integration_prefix_id} by {request.user.email}")
+    
+    try:
+        # Get integration with user access check
+        integration = get_object_or_404(
+            Integration,
+            prefix_id=integration_prefix_id,
+            account__account_users__user=request.user
+        )
+        
+        if request.method == 'POST':
+            # Confirm deletion
+            confirmation = request.POST.get('confirmation')
+            if confirmation != integration.organization_name:
+                messages.error(request, "Organization name confirmation did not match. Deletion cancelled.")
+                return redirect('dashboard')
+            
+            # Get stats before deletion for logging
+            transaction_count = integration.transactions.count()
+            issue_count = integration.issues.count()
+            
+            try:
+                # Revoke access with provider first (if possible)
+                IntegrationManager.revoke_integration(integration)
+                
+                organization_name = integration.organization_name
+                
+                # Delete the integration (cascading will handle related data)
+                integration.delete()
+                
+                logger.info(f"Successfully deleted integration {integration_prefix_id} ({organization_name}) "
+                           f"with {transaction_count} transactions and {issue_count} issues by {request.user.email}")
+                
+                messages.success(request, f"Successfully removed {organization_name} and all associated data.")
+                return redirect('dashboard')
+                
+            except Exception as delete_error:
+                logger.error(f"Failed to delete integration {integration_prefix_id}: {delete_error}")
+                messages.error(request, f"Failed to remove integration: {str(delete_error)}")
+                return redirect('dashboard')
+        
+        # Show confirmation page
+        context = {
+            'integration': integration,
+            'transaction_count': integration.transactions.count(),
+            'issue_count': integration.issues.count(),
+        }
+        
+        return render(request, 'integrations/delete_integration.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error accessing integration for deletion {integration_prefix_id}: {str(e)}", exc_info=True)
+        messages.error(request, "Integration not found or access denied")
+        return redirect('dashboard')
+
+
+@login_required
+def resolve_issue(request, issue_prefix_id):
+    """Mark a specific issue as resolved (account multi-tenant)"""
+    import logging
+    from django.utils import timezone
+    logger = logging.getLogger(__name__)
+    
+    if request.method == 'POST':
+        try:
+            # Get user's current account for proper multi-tenancy
+            current_account = request.user.profile.current_account
+            
+            # Get issue with proper account isolation
+            issue = get_object_or_404(
+                Issue,
+                prefix_id=issue_prefix_id,
+                integration__account=current_account,  # Ensure account isolation
+                status='open'
+            )
+            
+            # Mark as resolved
+            issue.status = 'resolved'
+            issue.resolved_by = request.user
+            issue.resolved_at = timezone.now()
+            issue.save()
+            
+            logger.info(f"Issue {issue_prefix_id} resolved by {request.user.email} for account {current_account.id}")
+            messages.success(request, f"Issue '{issue.title}' marked as resolved")
+            
+        except Exception as e:
+            logger.error(f"Error resolving issue {issue_prefix_id}: {str(e)}", exc_info=True)
+            messages.error(request, "Failed to resolve issue or access denied")
+    
+    return redirect('dashboard')
+
+
+@login_required  
+def bulk_resolve_issues(request):
+    """Mark multiple issues as resolved (account multi-tenant)"""
+    import logging
+    from django.utils import timezone
+    logger = logging.getLogger(__name__)
+    
+    if request.method == 'POST':
+        try:
+            # Get user's current account for proper multi-tenancy
+            current_account = request.user.profile.current_account
+            
+            issue_ids = request.POST.getlist('issue_ids')
+            
+            if issue_ids:
+                # Get issues with proper account isolation
+                issues = Issue.objects.filter(
+                    prefix_id__in=issue_ids,
+                    integration__account=current_account,  # Ensure account isolation
+                    status='open'
+                )
+                
+                # Mark all as resolved
+                updated_count = issues.update(
+                    status='resolved',
+                    resolved_by=request.user,
+                    resolved_at=timezone.now()
+                )
+                
+                logger.info(f"Bulk resolved {updated_count} issues by {request.user.email} for account {current_account.id}")
+                
+                if updated_count > 0:
+                    messages.success(request, f"Marked {updated_count} issues as resolved")
+                else:
+                    messages.info(request, "No open issues found to resolve")
+            else:
+                messages.info(request, "No issues selected")
+                
+        except Exception as e:
+            logger.error(f"Error bulk resolving issues: {str(e)}", exc_info=True)
+            messages.error(request, "Failed to resolve issues")
+    
+    return redirect('dashboard')
 

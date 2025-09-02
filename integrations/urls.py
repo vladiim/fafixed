@@ -10,6 +10,7 @@ urlpatterns = [
     path('sync/<str:integration_prefix_id>/', views.sync_integration, name='sync_integration'),
     path('refresh-sync/<str:integration_prefix_id>/', views.refresh_sync_integration, name='refresh_sync_integration'),
     path('revoke/<str:integration_prefix_id>/', views.revoke_integration, name='revoke_integration'),
+    path('delete/<str:integration_prefix_id>/', views.delete_integration, name='delete_integration'),
     path('transactions/<str:integration_prefix_id>/', views.transaction_list, name='transaction_list'),
     path('transactions/<str:transaction_prefix_id>/actions/', views.transaction_actions, name='transaction_actions'),
     path('transactions/<str:transaction_prefix_id>/run-validations/', views.run_transaction_validations, name='run_transaction_validations'),
@@ -18,6 +19,10 @@ urlpatterns = [
     # Transaction editing (super_admin only)
     path('transactions/<str:transaction_prefix_id>/edit/', views.transaction_edit, name='transaction_edit'),
     path('transactions/<str:transaction_prefix_id>/edit-check/', views.transaction_edit_check, name='transaction_edit_check'),
+    
+    # Issue management
+    path('issues/<str:issue_prefix_id>/resolve/', views.resolve_issue, name='resolve_issue'),
+    path('issues/bulk-resolve/', views.bulk_resolve_issues, name='bulk_resolve_issues'),
     
     # Handle callback when accessed directly from /xero/callback/
     path('', views.xero_callback, name='xero_callback_direct_handler'),

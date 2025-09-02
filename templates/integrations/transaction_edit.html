@@ -1,172 +1,181 @@
-{% extends "layouts/dashboard_layout.html" %}
+{% extends "base.html" %}
 {% load static %}
 
 {% block title %}Edit Transaction {{ transaction.prefix_id }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid" data-controller="transaction-edit">
-    <div class="row">
-        <div class="col-12">
-            <!-- Breadcrumb -->
-            <nav aria-label="breadcrumb" class="mb-4">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
-                    <li class="breadcrumb-item">
-                        <a href="{% url 'transaction_list' integration.prefix_id %}">
-                            {{ integration.organization_name }}
-                        </a>
-                    </li>
-                    <li class="breadcrumb-item active" aria-current="page">
-                        Edit {{ transaction.prefix_id }}
-                    </li>
-                </ol>
-            </nav>
+<div class="min-h-screen bg-gray-50" data-controller="transaction-edit">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Breadcrumb -->
+        <nav class="mb-8">
+            <ol class="flex items-center space-x-2 text-sm">
+                <li><a href="{% url 'dashboard' %}" class="text-gray-500 hover:text-brand-black">Dashboard</a></li>
+                <li class="text-gray-400"><i class="fas fa-chevron-right"></i></li>
+                <li>
+                    <a href="{% url 'transaction_list' integration.prefix_id %}" class="text-gray-500 hover:text-brand-black">
+                        {{ integration.organization_name }}
+                    </a>
+                </li>
+                <li class="text-gray-400"><i class="fas fa-chevron-right"></i></li>
+                <li class="text-brand-black font-medium">Edit {{ transaction.prefix_id }}</li>
+            </ol>
+        </nav>
 
-            <!-- Warning Banner -->
-            <div class="alert alert-warning d-flex align-items-center mb-4" role="alert">
-                <i class="fas fa-exclamation-triangle me-2"></i>
+        <!-- Warning Banner -->
+        <div class="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-8">
+            <div class="flex items-start">
+                <i class="fas fa-exclamation-triangle text-orange-500 mr-3 mt-0.5"></i>
                 <div>
-                    <strong>⚠️ Warning:</strong> You are editing transaction data from the source system. 
-                    Changes may affect financial calculations and validation results. 
-                    Only super administrators can perform this action.
+                    <div class="font-semibold text-orange-800">⚠️ Warning:</div>
+                    <p class="text-orange-700 mt-1">
+                        You are editing transaction data from the source system. 
+                        Changes may affect financial calculations and validation results. 
+                        Only super administrators can perform this action.
+                    </p>
                 </div>
             </div>
+        </div>
 
-            <!-- Transaction Edit Form -->
-            <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center">
+        <!-- Transaction Edit Form -->
+        <div class="bg-brand-white rounded-lg shadow-sm border border-gray-200">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <div class="flex items-center justify-between">
                     <div>
-                        <h4 class="mb-0">Edit Transaction</h4>
-                        <small class="text-muted">{{ transaction.prefix_id }} from {{ integration.organization_name }}</small>
+                        <h4 class="text-xl font-heading font-semibold text-brand-black">Edit Transaction</h4>
+                        <p class="text-sm text-gray-600 mt-1">{{ transaction.prefix_id }} from {{ integration.organization_name }}</p>
                     </div>
-                    <div class="text-end">
-                        <span class="badge bg-secondary">{{ transaction.transaction_type|default:"Unknown" }}</span>
-                        <span class="badge bg-info">{{ transaction.status|title }}</span>
+                    <div class="flex items-center space-x-2">
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            {{ transaction.transaction_type|default:"Unknown"|title }}
+                        </span>
+                        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            {{ transaction.status|title }}
+                        </span>
                     </div>
                 </div>
-                
-                <div class="card-body">
-                    <!-- Read-only Context Information -->
-                    <div class="row mb-4 bg-light p-3 rounded">
-                        <div class="col-md-6">
-                            <strong>External ID:</strong> {{ transaction.external_transaction_id }}<br>
-                            <strong>External Account:</strong> {{ transaction.external_account_id }}<br>
-                            <strong>Created:</strong> {{ transaction.created_at|date:"M d, Y H:i" }}
+            </div>
+            
+            <div class="p-6">
+                <!-- Read-only Context Information -->
+                <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div class="space-y-2">
+                            <div><span class="font-medium text-gray-900">External ID:</span> <span class="text-gray-600">{{ transaction.external_transaction_id }}</span></div>
+                            <div><span class="font-medium text-gray-900">External Account:</span> <span class="text-gray-600">{{ transaction.external_account_id }}</span></div>
+                            <div><span class="font-medium text-gray-900">Created:</span> <span class="text-gray-600">{{ transaction.created_at|date:"M d, Y H:i" }}</span></div>
                         </div>
-                        <div class="col-md-6">
-                            <strong>Last Updated:</strong> {{ transaction.updated_at|date:"M d, Y H:i" }}<br>
-                            <strong>Integration:</strong> {{ integration.organization_name }}<br>
-                            <strong>Provider:</strong> {{ integration.provider.display_name }}
+                        <div class="space-y-2">
+                            <div><span class="font-medium text-gray-900">Last Updated:</span> <span class="text-gray-600">{{ transaction.updated_at|date:"M d, Y H:i" }}</span></div>
+                            <div><span class="font-medium text-gray-900">Integration:</span> <span class="text-gray-600">{{ integration.organization_name }}</span></div>
+                            <div><span class="font-medium text-gray-900">Provider:</span> <span class="text-gray-600">{{ integration.provider.display_name }}</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Edit Form -->
+                <form method="post" novalidate data-turbo="false" data-transaction-edit-target="form">
+                    {% csrf_token %}
+                    
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <!-- Amount -->
+                        <div class="space-y-2">
+                            <label for="{{ form.amount.id_for_label }}" class="block text-sm font-medium text-gray-900">
+                                Amount <span class="text-red-500">*</span>
+                            </label>
+                            {{ form.amount }}
+                            {% if form.amount.help_text %}
+                                <div class="text-sm text-gray-600">{{ form.amount.help_text }}</div>
+                            {% endif %}
+                            {% for error in form.amount.errors %}
+                                <div class="text-red-600 text-sm">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- Date -->
+                        <div class="space-y-2">
+                            <label for="{{ form.date.id_for_label }}" class="block text-sm font-medium text-gray-900">
+                                Date <span class="text-red-500">*</span>
+                            </label>
+                            {{ form.date }}
+                            {% if form.date.help_text %}
+                                <div class="text-sm text-gray-600">{{ form.date.help_text }}</div>
+                            {% endif %}
+                            {% for error in form.date.errors %}
+                                <div class="text-red-600 text-sm">{{ error }}</div>
+                            {% endfor %}
                         </div>
                     </div>
 
-                    <!-- Edit Form -->
-                    <form method="post" novalidate data-transaction-edit-target="form">
-                        {% csrf_token %}
+                    <div class="grid md:grid-cols-2 gap-6 mt-6">
+                        <!-- Reference -->
+                        <div class="space-y-2">
+                            <label for="{{ form.reference.id_for_label }}" class="block text-sm font-medium text-gray-900">
+                                Reference
+                            </label>
+                            {{ form.reference }}
+                            {% if form.reference.help_text %}
+                                <div class="text-sm text-gray-600">{{ form.reference.help_text }}</div>
+                            {% endif %}
+                            {% for error in form.reference.errors %}
+                                <div class="text-red-600 text-sm">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- Status -->
+                        <div class="space-y-2">
+                            <label for="{{ form.status.id_for_label }}" class="block text-sm font-medium text-gray-900">
+                                Status
+                            </label>
+                            {{ form.status }}
+                            {% if form.status.help_text %}
+                                <div class="text-sm text-gray-600">{{ form.status.help_text }}</div>
+                            {% endif %}
+                            {% for error in form.status.errors %}
+                                <div class="text-red-600 text-sm">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Contact Name -->
+                    <div class="space-y-2 mt-6">
+                        <label for="{{ form.contact_name.id_for_label }}" class="block text-sm font-medium text-gray-900">
+                            Contact Name
+                        </label>
+                        {{ form.contact_name }}
+                        {% if form.contact_name.help_text %}
+                            <div class="text-sm text-gray-600">{{ form.contact_name.help_text }}</div>
+                        {% endif %}
+                        {% for error in form.contact_name.errors %}
+                            <div class="text-red-600 text-sm">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Description -->
+                    <div class="space-y-2 mt-6">
+                        <label for="{{ form.description.id_for_label }}" class="block text-sm font-medium text-gray-900">
+                            Description
+                        </label>
+                        {{ form.description }}
+                        {% if form.description.help_text %}
+                            <div class="text-sm text-gray-600">{{ form.description.help_text }}</div>
+                        {% endif %}
+                        {% for error in form.description.errors %}
+                            <div class="text-red-600 text-sm">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Form Actions -->
+                    <div class="flex items-center justify-between pt-6 mt-6 border-t border-gray-200">
+                        <a href="{% url 'transaction_list' integration.prefix_id %}" 
+                           class="btn-secondary">
+                            <i class="fas fa-arrow-left mr-2"></i> Back to Transactions
+                        </a>
                         
-                        <div class="row">
-                            <!-- Amount -->
-                            <div class="col-md-6 mb-3">
-                                <label for="{{ form.amount.id_for_label }}" class="form-label">
-                                    Amount <span class="text-danger">*</span>
-                                </label>
-                                {{ form.amount }}
-                                {% if form.amount.help_text %}
-                                    <div class="form-text">{{ form.amount.help_text }}</div>
-                                {% endif %}
-                                {% for error in form.amount.errors %}
-                                    <div class="text-danger small">{{ error }}</div>
-                                {% endfor %}
-                            </div>
-
-                            <!-- Date -->
-                            <div class="col-md-6 mb-3">
-                                <label for="{{ form.date.id_for_label }}" class="form-label">
-                                    Date <span class="text-danger">*</span>
-                                </label>
-                                {{ form.date }}
-                                {% if form.date.help_text %}
-                                    <div class="form-text">{{ form.date.help_text }}</div>
-                                {% endif %}
-                                {% for error in form.date.errors %}
-                                    <div class="text-danger small">{{ error }}</div>
-                                {% endfor %}
-                            </div>
-                        </div>
-
-                        <div class="row">
-                            <!-- Reference -->
-                            <div class="col-md-6 mb-3">
-                                <label for="{{ form.reference.id_for_label }}" class="form-label">
-                                    Reference
-                                </label>
-                                {{ form.reference }}
-                                {% if form.reference.help_text %}
-                                    <div class="form-text">{{ form.reference.help_text }}</div>
-                                {% endif %}
-                                {% for error in form.reference.errors %}
-                                    <div class="text-danger small">{{ error }}</div>
-                                {% endfor %}
-                            </div>
-
-                            <!-- Status -->
-                            <div class="col-md-6 mb-3">
-                                <label for="{{ form.status.id_for_label }}" class="form-label">
-                                    Status
-                                </label>
-                                {{ form.status }}
-                                {% if form.status.help_text %}
-                                    <div class="form-text">{{ form.status.help_text }}</div>
-                                {% endif %}
-                                {% for error in form.status.errors %}
-                                    <div class="text-danger small">{{ error }}</div>
-                                {% endfor %}
-                            </div>
-                        </div>
-
-                        <!-- Contact Name -->
-                        <div class="mb-3">
-                            <label for="{{ form.contact_name.id_for_label }}" class="form-label">
-                                Contact Name
-                            </label>
-                            {{ form.contact_name }}
-                            {% if form.contact_name.help_text %}
-                                <div class="form-text">{{ form.contact_name.help_text }}</div>
-                            {% endif %}
-                            {% for error in form.contact_name.errors %}
-                                <div class="text-danger small">{{ error }}</div>
-                            {% endfor %}
-                        </div>
-
-                        <!-- Description -->
-                        <div class="mb-3">
-                            <label for="{{ form.description.id_for_label }}" class="form-label">
-                                Description
-                            </label>
-                            {{ form.description }}
-                            {% if form.description.help_text %}
-                                <div class="form-text">{{ form.description.help_text }}</div>
-                            {% endif %}
-                            {% for error in form.description.errors %}
-                                <div class="text-danger small">{{ error }}</div>
-                            {% endfor %}
-                        </div>
-
-                        <!-- Form Actions -->
-                        <div class="d-flex justify-content-between align-items-center mt-4">
-                            <a href="{% url 'transaction_list' integration.prefix_id %}" 
-                               class="btn btn-secondary">
-                                <i class="fas fa-arrow-left me-1"></i> Back to Transactions
-                            </a>
-                            
-                            <div>
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-check me-1"></i> Update Transaction
-                                </button>
-                            </div>
-                        </div>
-                    </form>
-                </div>
+                        <button type="submit" class="btn-primary">
+                            <i class="fas fa-check mr-2"></i> Update Transaction
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>

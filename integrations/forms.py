@@ -24,29 +24,29 @@ class TransactionEditForm(forms.ModelForm):
         ]
         widgets = {
             'amount': forms.NumberInput(attrs={
-                'class': 'form-control',
+                'class': 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-green focus:border-brand-green sm:text-sm',
                 'step': '0.01',
                 'placeholder': 'Enter amount'
             }),
             'date': forms.DateInput(attrs={
-                'class': 'form-control',
+                'class': 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-green focus:border-brand-green sm:text-sm',
                 'type': 'date'
             }),
             'reference': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-green focus:border-brand-green sm:text-sm',
                 'placeholder': 'Transaction reference'
             }),
             'description': forms.Textarea(attrs={
-                'class': 'form-control',
+                'class': 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-green focus:border-brand-green sm:text-sm',
                 'rows': 3,
                 'placeholder': 'Transaction description'
             }),
             'contact_name': forms.TextInput(attrs={
-                'class': 'form-control',
+                'class': 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-green focus:border-brand-green sm:text-sm',
                 'placeholder': 'Contact name'
             }),
             'status': forms.Select(attrs={
-                'class': 'form-control'
+                'class': 'mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-green focus:border-brand-green sm:text-sm'
             }),
         }
         
@@ -58,6 +58,10 @@ class TransactionEditForm(forms.ModelForm):
         for field_name in readonly_fields:
             if field_name in self.fields:
                 self.fields[field_name].widget.attrs['readonly'] = True
+        
+        # Ensure status field has correct choices
+        if 'status' in self.fields:
+            self.fields['status'].choices = TransactionData.STATUS_CHOICES
         
         # Add help text
         self.fields['amount'].help_text = "Transaction amount (be careful changing this)"

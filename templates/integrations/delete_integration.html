@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Remove {{ integration.organization_name }} - FAFixed{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50">
+    <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <div class="flex items-center space-x-2 text-sm mb-4">
+                <a href="{% url 'dashboard' %}" class="text-gray-500 hover:text-brand-black">Dashboard</a>
+                <span class="text-gray-400">›</span>
+                <span class="text-brand-black font-medium">Remove Integration</span>
+            </div>
+            <h2 class="text-3xl font-heading font-bold text-brand-black">Remove Integration</h2>
+            <p class="text-gray-600 mt-2">This action cannot be undone</p>
+        </div>
+
+        <!-- Warning Card -->
+        <div class="bg-red-50 border border-red-200 rounded-lg p-6 mb-8">
+            <div class="flex items-start">
+                <i class="fas fa-exclamation-triangle text-red-500 mr-3 mt-1"></i>
+                <div>
+                    <h3 class="font-semibold text-red-800 text-lg mb-2">⚠️ Permanent Deletion Warning</h3>
+                    <p class="text-red-700 mb-4">
+                        You are about to permanently remove <strong>{{ integration.organization_name }}</strong> 
+                        and ALL associated data from FAFixed. This includes:
+                    </p>
+                    <ul class="text-red-700 space-y-1 mb-4 list-disc list-inside">
+                        <li><strong>{{ transaction_count }}</strong> transaction records</li>
+                        <li><strong>{{ issue_count }}</strong> validation issues</li>
+                        <li>All sync history and logs</li>
+                        <li>OAuth credentials and connection settings</li>
+                    </ul>
+                    <p class="text-red-700 font-medium">
+                        This data cannot be recovered once deleted. You will need to reconnect and resync if you want to use this integration again.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Integration Details -->
+        <div class="bg-brand-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+            <h3 class="font-heading font-semibold text-brand-black mb-4">Integration Details</h3>
+            <div class="space-y-3">
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Organisation:</span>
+                    <span class="font-medium text-brand-black">{{ integration.organization_name }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Provider:</span>
+                    <span class="font-medium text-brand-black">{{ integration.provider.display_name }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Status:</span>
+                    <span class="font-medium text-brand-black">{{ integration.status|title }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Connected:</span>
+                    <span class="font-medium text-brand-black">{{ integration.created_at|date:"M d, Y" }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Transactions:</span>
+                    <span class="font-medium text-brand-black">{{ transaction_count }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Issues Found:</span>
+                    <span class="font-medium text-brand-black">{{ issue_count }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Confirmation Form -->
+        <div class="bg-brand-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <h3 class="font-heading font-semibold text-brand-black mb-4">Confirm Removal</h3>
+            <p class="text-gray-600 mb-4">
+                To confirm deletion, please type <strong>{{ integration.organization_name }}</strong> in the field below:
+            </p>
+            
+            <form method="post" data-turbo="false">
+                {% csrf_token %}
+                <div class="space-y-4">
+                    <div>
+                        <label for="confirmation" class="block text-sm font-medium text-gray-900 mb-2">
+                            Organisation Name Confirmation
+                        </label>
+                        <input 
+                            type="text" 
+                            name="confirmation" 
+                            id="confirmation"
+                            required
+                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-red-500 focus:border-red-500 sm:text-sm"
+                            placeholder="Enter organisation name to confirm"
+                        >
+                    </div>
+                    
+                    <div class="flex items-center justify-between pt-4">
+                        <a href="{% url 'dashboard' %}" class="btn-secondary">
+                            <i class="fas fa-arrow-left mr-2"></i> Cancel
+                        </a>
+                        
+                        <button 
+                            type="submit" 
+                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+                        >
+                            <i class="fas fa-trash mr-2"></i> Permanently Remove Integration
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

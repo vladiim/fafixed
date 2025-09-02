@@ -84,14 +84,18 @@
                                     </a>
                                 {% endif %}
                             </div>
-                            {% if integration.has_selected_accounts %}
-                            <div class="mt-2">
+                            <div class="mt-2 flex items-center gap-2 flex-wrap">
+                                {% if integration.has_selected_accounts %}
                                 <a href="{% url 'refresh_sync_integration' integration.prefix_id %}" data-turbo="false" class="inline-flex items-center px-2 py-1 text-xs font-medium text-brand-black bg-gray-100 hover:bg-gray-200 rounded transition-colors">
                                     <i class="fas fa-sync-alt mr-1"></i>
                                     Refresh Sync
                                 </a>
+                                {% endif %}
+                                <a href="{% url 'delete_integration' integration.prefix_id %}" class="inline-flex items-center px-2 py-1 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded transition-colors">
+                                    <i class="fas fa-trash mr-1"></i>
+                                    Remove
+                                </a>
                             </div>
-                            {% endif %}
                         </div>
                         {% empty %}
                         <div class="text-center p-4 text-gray-500">
@@ -125,20 +129,121 @@
                 <p class="text-gray-600">Data quality issues found in your connected accounts</p>
             </div>
 
-            <!-- Issues List -->
-            {% if issues %}
+            <!-- Issues Section - Always show for consistency -->
             <div class="bg-brand-white rounded-lg shadow-sm border border-gray-200">
+                <!-- Header with dropdown and actions (always visible) -->
                 <div class="px-6 py-4 border-b border-gray-200">
                     <div class="flex items-center justify-between">
-                        <h3 class="font-heading font-semibold text-brand-black">Active Issues</h3>
-                        <span class="text-sm text-gray-500">{{ total_issues }} total</span>
+                        <div class="flex items-center space-x-4">
+                            <!-- Dynamic Issues Title with Dropdown -->
+                            <div class="relative" data-controller="dropdown">
+                                <button type="button" 
+                                        data-action="click->dropdown#toggle"
+                                        data-dropdown-target="button"
+                                        class="flex items-center space-x-2 font-heading font-semibold text-brand-black hover:text-gray-700">
+                                    <h3>{{ issues_title }}</h3>
+                                    <i class="fas fa-chevron-down text-sm transition-transform duration-200" data-dropdown-target="chevron"></i>
+                                </button>
+                                
+                                <div data-dropdown-target="menu" 
+                                     class="hidden absolute left-0 mt-2 w-64 bg-brand-white rounded-md shadow-lg border border-gray-200 z-50">
+                                    <div class="py-2">
+                                        <a href="?issues=active" 
+                                           class="flex items-center justify-between px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {% if 'active' in current_issue_filters and current_issue_filters|length == 1 %}bg-gray-50 font-medium{% endif %}">
+                                            <span>Active Issues</span>
+                                            <span class="text-xs text-gray-500">{{ issue_stats.active_count }}</span>
+                                        </a>
+                                        <a href="?issues=resolved" 
+                                           class="flex items-center justify-between px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {% if 'resolved' in current_issue_filters and current_issue_filters|length == 1 %}bg-gray-50 font-medium{% endif %}">
+                                            <span>Resolved Issues</span>
+                                            <span class="text-xs text-gray-500">{{ issue_stats.resolved_count }}</span>
+                                        </a>
+                                        <a href="?issues=ignored" 
+                                           class="flex items-center justify-between px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {% if 'ignored' in current_issue_filters and current_issue_filters|length == 1 %}bg-gray-50 font-medium{% endif %}">
+                                            <span>Ignored Issues</span>
+                                            <span class="text-xs text-gray-500">{{ issue_stats.ignored_count }}</span>
+                                        </a>
+                                        <div class="border-t border-gray-100 my-1"></div>
+                                        <a href="?issues=active&issues=resolved" 
+                                           class="flex items-center justify-between px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                                            <span>Active & Resolved</span>
+                                            <span class="text-xs text-gray-500">{{ issue_stats.active_count|add:issue_stats.resolved_count }}</span>
+                                        </a>
+                                        <a href="?issues=active&issues=resolved&issues=ignored" 
+                                           class="flex items-center justify-between px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                                            <span>All Issues</span>
+                                            <span class="text-xs text-gray-500">{{ issue_stats.total_count }}</span>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <span class="text-sm text-gray-500">{{ total_issues }} total</span>
+                            {% if has_integrations %}
+                            <a href="{% url 'refresh_sync_integration' integrations.0.prefix_id %}" 
+                               data-turbo="false" 
+                               class="inline-flex items-center px-3 py-1 text-xs font-medium text-brand-black bg-gray-100 hover:bg-gray-200 rounded transition-colors">
+                                <i class="fas fa-sync-alt mr-1"></i>
+                                Sync Transactions
+                            </a>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
                 
-                <div class="divide-y divide-gray-200">
-                    {% for issue in issues %}
-                    <div class="p-6 hover:bg-gray-50">
-                        <div class="flex items-start justify-between">
+                <!-- Content Area - Issues List or Enhanced Empty State -->
+                {% if issues %}
+                    <!-- Issues exist - show list with bulk actions -->
+                    <form action="{% url 'bulk_resolve_issues' %}" method="post" data-turbo="false" 
+                          data-controller="bulk-action"
+                          data-bulk-action-action-text-value="Mark as Resolved"
+                          data-bulk-action-action-text-plural-value="Mark %count% Issues as Resolved"
+                          data-bulk-action-require-confirmation-value="false">
+                        {% csrf_token %}
+                        
+                        <!-- Bulk Actions Header -->
+                        {% if 'active' in current_issue_filters %}
+                        <div class="px-6 py-3 bg-gray-50 border-b border-gray-200">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <input type="checkbox" 
+                                           data-bulk-action-target="selectAll" 
+                                           data-action="change->bulk-action#selectAllChanged"
+                                           class="h-4 w-4 text-brand-green focus:ring-brand-green border-gray-300 rounded">
+                                    <label class="text-sm text-gray-600">Select All</label>
+                                </div>
+                                <button type="submit" 
+                                        data-bulk-action-target="actionButton"
+                                        data-action="click->bulk-action#submitAction"
+                                        class="inline-flex items-center px-3 py-1 text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed" 
+                                        disabled>
+                                    <i class="fas fa-check mr-1"></i>
+                                    Mark as Resolved
+                                </button>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Issues List -->
+                        <div class="divide-y divide-gray-200">
+                        {% for issue in issues %}
+                        <div class="p-6 hover:bg-gray-50">
+                            <div class="flex items-start space-x-4">
+                                <!-- Checkbox (only for active issues) -->
+                                {% if 'active' in current_issue_filters %}
+                                <div class="flex items-center">
+                                    <input type="checkbox" 
+                                           name="issue_ids" 
+                                           value="{{ issue.prefix_id }}" 
+                                           data-bulk-action-target="item"
+                                           data-action="change->bulk-action#itemChanged"
+                                           class="h-4 w-4 text-brand-green focus:ring-brand-green border-gray-300 rounded">
+                                </div>
+                                {% else %}
+                                <div class="w-4"></div> <!-- Spacer when no checkbox -->
+                                {% endif %}
+                            
                             <div class="flex-1">
                                 <div class="flex items-center mb-2">
                                     <!-- Severity badge -->
@@ -198,23 +303,93 @@
                             </div>
                         </div>
                     </div>
-                    {% endfor %}
-                </div>
+                        {% endfor %}
+                        </div>
+                    </form>
+                {% else %}
+                    <!-- Enhanced Empty State - Contextual based on user scenario -->
+                    <div class="p-8">
+                        {% if is_first_time_user %}
+                            <!-- Scenario A: First Time User -->
+                            <div class="text-center">
+                                <div class="mx-auto w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mb-4">
+                                    <i class="fas fa-search text-blue-500 text-2xl"></i>
+                                </div>
+                                <h3 class="text-lg font-heading font-semibold text-brand-black mb-2">🔍 Checking for Issues</h3>
+                                <p class="text-gray-600 mb-6">No issues detected yet. Sync your transactions to start monitoring data quality.</p>
+                                <div class="flex items-center justify-center space-x-3">
+                                    {% if has_integrations %}
+                                    <a href="{% url 'refresh_sync_integration' integrations.0.prefix_id %}" 
+                                       data-turbo="false" 
+                                       class="btn-primary">
+                                        <i class="fas fa-sync-alt mr-2"></i>
+                                        Sync Transactions
+                                    </a>
+                                    {% endif %}
+                                    <a href="{% url 'xero_connect' %}" class="btn-secondary" data-turbo="false">
+                                        <i class="fas fa-plus mr-2"></i>
+                                        Connect Account
+                                    </a>
+                                </div>
+                            </div>
+                        {% elif has_stale_data %}
+                            <!-- Scenario C: Stale Data -->
+                            <div class="text-center">
+                                <div class="mx-auto w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center mb-4">
+                                    <i class="fas fa-exclamation-triangle text-orange-500 text-2xl"></i>
+                                </div>
+                                <h3 class="text-lg font-heading font-semibold text-brand-black mb-2">⚠️ Data May Be Outdated</h3>
+                                <p class="text-gray-600 mb-2">Last sync: {{ latest_sync|timesince }} ago</p>
+                                <p class="text-gray-600 mb-6">Sync transactions to check for new issues.</p>
+                                <a href="{% url 'refresh_sync_integration' integrations.0.prefix_id %}" 
+                                   data-turbo="false" 
+                                   class="btn-primary">
+                                    <i class="fas fa-sync-alt mr-2"></i>
+                                    Sync Now
+                                </a>
+                            </div>
+                        {% else %}
+                            <!-- Scenario B: Experienced User (All Clear) -->
+                            <div class="text-center">
+                                <div class="mx-auto w-20 h-20 bg-brand-green bg-opacity-10 rounded-full flex items-center justify-center mb-4">
+                                    <i class="fas fa-check-circle text-brand-green text-2xl"></i>
+                                </div>
+                                <h3 class="text-lg font-heading font-semibold text-brand-black mb-2">🎉 Excellent Work!</h3>
+                                <p class="text-gray-600 mb-2">No {% if 'active' in current_issue_filters %}active {% endif %}issues detected in your {{ integrations|length }} connected account{{ integrations|length|pluralize }}.</p>
+                                {% if has_resolved_issues %}
+                                <p class="text-gray-600 mb-6">
+                                    You've resolved {{ issue_stats.resolved_count }} issue{{ issue_stats.resolved_count|pluralize }} 
+                                    {% if recent_resolutions > 0 %}
+                                        ({{ recent_resolutions }} this month)
+                                    {% endif %}
+                                    {% if issue_free_days > 0 %}
+                                        and have been issue-free for {{ issue_free_days }} day{{ issue_free_days|pluralize }}!
+                                    {% endif %}
+                                </p>
+                                {% else %}
+                                <p class="text-gray-600 mb-6">Monitored {{ total_transactions }} transaction{{ total_transactions|pluralize }} across all accounts.</p>
+                                {% endif %}
+                                <div class="flex items-center justify-center space-x-3">
+                                    {% if has_resolved_issues %}
+                                    <a href="?issues=resolved" class="btn-secondary">
+                                        <i class="fas fa-history mr-2"></i>
+                                        View Resolved Issues
+                                    </a>
+                                    {% endif %}
+                                    {% if has_integrations %}
+                                    <a href="{% url 'refresh_sync_integration' integrations.0.prefix_id %}" 
+                                       data-turbo="false" 
+                                       class="btn-primary">
+                                        <i class="fas fa-sync-alt mr-2"></i>
+                                        Sync Now
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endif %}
             </div>
-            {% else %}
-            <!-- Empty state -->
-            <div class="bg-brand-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-                <div class="mx-auto w-24 h-24 bg-brand-green bg-opacity-10 rounded-full flex items-center justify-center mb-6">
-                    <i class="fas fa-check-circle text-brand-green text-3xl"></i>
-                </div>
-                <h3 class="font-heading font-semibold text-brand-black text-xl mb-2">All Clean!</h3>
-                <p class="text-gray-600 mb-6">No data quality issues found in your connected accounts.</p>
-                <a href="{% url 'xero_connect' %}" class="btn-primary" data-turbo="false">
-                    <i class="fas fa-plus mr-2"></i>
-                    Connect Another Account
-                </a>
-            </div>
-            {% endif %}
         </div>
 </div>
 {% endblock %}

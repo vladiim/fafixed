@@ -25,6 +25,7 @@ import DropdownController from "./controllers/dropdown_controller.js"
 import ValidationRunnerController from "./controllers/validation_runner_controller.js"
 import RefreshStatusController from "./controllers/refresh_status_controller.js"
 import ActionCableController from "./controllers/actioncable_controller.js"
+import BulkActionController from "./controllers/bulk_action_controller.js"
 
 const application = Application.start()
 
@@ -35,6 +36,7 @@ application.register("dropdown", DropdownController)
 application.register("validation-runner", ValidationRunnerController)
 application.register("refresh-status", RefreshStatusController)
 application.register("actioncable", ActionCableController)
+application.register("bulk-action", BulkActionController)
 
 // Configure Stimulus development experience  
 application.debug = false  // Disable debug to reduce console noise

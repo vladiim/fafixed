@@ -199,9 +199,20 @@ class IssueManager(models.Manager):
     
     def _generate_issue_key(self, integration, validation_result):
         """Generate a scoped issue key for grouping similar issues"""
+        import hashlib
+        
         # Key format: account_id:external_account_id:rule_name:severity
         # This ensures issues are only grouped within the same tenant + chart scope
-        return f"{integration.account.id}:{integration.external_account_id}:{validation_result.rule_name}:{validation_result.severity.value}"
+        full_key = f"{integration.account.id}:{integration.external_account_id}:{validation_result.rule_name}:{validation_result.severity.value}"
+        
+        # If the key is too long for the database field, hash it
+        if len(full_key) > 64:
+            # Create a shorter key by hashing the long parts but keeping readable parts
+            hash_input = f"{integration.external_account_id}:{validation_result.rule_name}"
+            hash_short = hashlib.md5(hash_input.encode()).hexdigest()[:12]
+            return f"{integration.account.id}:{hash_short}:{validation_result.severity.value}"
+        
+        return full_key
     
     def _update_existing_issue(self, existing_issue, validation_result):
         """Update an existing issue with new occurrence data"""
