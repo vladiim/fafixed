@@ -1,7 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
-from core.models import Account, PrefixIdMixin
+from core.models import Account
+from shared.models import PrefixIdMixin
 from encrypted_model_fields.fields import EncryptedTextField, EncryptedCharField
 from datetime import datetime, timedelta
 import json

@@ -45,8 +45,16 @@ INSTALLED_APPS = [
     'django_extensions',
     'turbo_helper',
     'actioncable',
+    
+    # Existing apps
     'core',
-    'integrations',
+    'integrations',  # Keep existing for now during migration
+    
+    # New domain-driven apps
+    'shared',
+    'connections',
+    'financial_data', 
+    'data_quality',
 ]
 
 MIDDLEWARE = [
