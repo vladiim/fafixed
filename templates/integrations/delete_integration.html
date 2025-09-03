@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Remove {{ integration.organization_name }} - FAFixed{% endblock %}
+{% block title %}Remove {{ integration.organization_name }} - veridy.ai{% endblock %}
 
 {% block content %}
 <div class="min-h-screen bg-gray-50">
@@ -24,7 +24,7 @@
                     <h3 class="font-semibold text-red-800 text-lg mb-2">⚠️ Permanent Deletion Warning</h3>
                     <p class="text-red-700 mb-4">
                         You are about to permanently remove <strong>{{ integration.organization_name }}</strong> 
-                        and ALL associated data from FAFixed. This includes:
+                        and ALL associated data from veridy.ai. This includes:
                     </p>
                     <ul class="text-red-700 space-y-1 mb-4 list-disc list-inside">
                         <li><strong>{{ transaction_count }}</strong> transaction records</li>
