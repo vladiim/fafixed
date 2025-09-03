@@ -567,9 +567,10 @@ class XeroIntegrationService(BaseIntegrationService):
                             'is_reconciled': getattr(xero_transaction, 'is_reconciled', False),
                             'contact_name': xero_transaction.contact.name if xero_transaction.contact else '',
                             'contact_external_id': xero_transaction.contact.contact_id if xero_transaction.contact else '',
-                            'external_url': f"https://go.xero.com/Bank/BankAccounts.aspx?accountID={xero_transaction.bank_account.account_id}" if xero_transaction.bank_account else '',
+                            'external_url': '',  # Use get_xero_url() method instead
                             'raw_data': convert_decimals_for_json({
                                 'bank_transaction_id': xero_transaction.bank_transaction_id,
+                                'account_id': xero_transaction.bank_account.account_id if xero_transaction.bank_account else '',
                                 'type': self._safe_get_value(xero_transaction.type, None),
                                 'tenant_id': tenant_id
                             })
@@ -887,7 +888,7 @@ class XeroIntegrationService(BaseIntegrationService):
                             'currency_code': str(getattr(xero_transaction, 'currency_code', 'USD') or 'USD')[:3],
                             'status': xero_transaction.status.lower() if xero_transaction.status else 'authorised',
                             'is_reconciled': bool(xero_transaction.is_reconciled),
-                            'external_url': getattr(xero_transaction, 'url', None) or self._build_transaction_url(xero_transaction.bank_transaction_id),
+                            'external_url': '',  # Use get_xero_url() method instead
                             'raw_data': convert_decimals_for_json(xero_transaction.to_dict()) if hasattr(xero_transaction, 'to_dict') else {},
                             'last_synced_at': timezone.now()
                         }
@@ -972,9 +973,9 @@ class XeroIntegrationService(BaseIntegrationService):
         }
         return type_mapping.get(xero_type.upper() if xero_type else '', 'other')
     
-    def _build_transaction_url(self, transaction_id: str) -> str:
+    def _build_transaction_url(self, transaction_id: str, account_id: str = None) -> str:
         """Build URL to view transaction in Xero"""
-        # Xero URL format: https://go.xero.com/Bank/ViewTransaction.aspx?bankTransactionID={id}
+        # Simple Xero URL format: https://go.xero.com/Bank/ViewTransaction.aspx?bankTransactionID={id}
         return f"https://go.xero.com/Bank/ViewTransaction.aspx?bankTransactionID={transaction_id}"
 
 

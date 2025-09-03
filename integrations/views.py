@@ -1025,22 +1025,24 @@ def issue_detail(request, issue_prefix_id):
                         break
                 
                 if live_txn:
-                    # Construct specific Xero transaction URL if possible
-                    xero_transaction_url = live_txn.external_url  # Default fallback
-                    if live_txn.integration.provider.name == 'xero' and live_txn.raw_data:
-                        tenant_id = live_txn.raw_data.get('tenant_id')
-                        bank_transaction_id = live_txn.raw_data.get('bank_transaction_id')
-                        if tenant_id and bank_transaction_id:
-                            xero_transaction_url = f"https://go.xero.com/Bank/BankRec.aspx?tenantId={tenant_id}&bankTransactionID={bank_transaction_id}"
+                    # Debug what we're working with
+                    print(f"DEBUG: live_txn.external_transaction_id = {live_txn.external_transaction_id}")
+                    print(f"DEBUG: stored_txn external_url = {stored_txn.get('external_url', 'NONE')}")
                     
                     enhanced_txn = {
                         **stored_txn,  # Use stored data from issue
                         'live_object': live_txn,  # Add live object for additional context
                         'integration_prefix_id': live_txn.integration.prefix_id,
-                        'external_url': xero_transaction_url,  # Use specific transaction URL
-                        'needs_review': True  # Default status for Phase 1
+                        'needs_review': True,  # Default status for Phase 1
+                        'external_url': f"https://go.xero.com/Bank/ViewTransaction.aspx?bankTransactionID={live_txn.external_transaction_id}",  # Force correct URL format
                     }
+                    print(f"DEBUG: enhanced_txn external_url = {enhanced_txn['external_url']}")
                     transaction_objects.append(enhanced_txn)
+                else:
+                    # If no live transaction, use stored data but fix URL
+                    print(f"DEBUG: No live_txn found for stored_txn id {stored_txn.get('id')}")
+                    stored_txn['external_url'] = f"https://go.xero.com/Bank/ViewTransaction.aspx?bankTransactionID={stored_txn.get('external_transaction_id', '')}"
+                    transaction_objects.append(stored_txn)
             
             enhanced_group['enhanced_transactions'] = transaction_objects
             

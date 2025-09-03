@@ -503,6 +503,12 @@ class TransactionData(models.Model, PrefixIdMixin):
         """Get the count of validation rules that have been run on this transaction"""
         return self.validation_statuses.filter(status='completed').count()
     
+    def get_xero_url(self):
+        """Get the Xero URL for this transaction - single source of truth"""
+        if self.integration.provider.name == 'xero' and self.external_transaction_id:
+            return f"https://go.xero.com/Bank/ViewTransaction.aspx?bankTransactionID={self.external_transaction_id}"
+        return self.external_url or ""
+    
     def get_validation_status_display(self):
         """Get the validation status as (x/y) format with CSS class"""
         completed = self.get_validation_status_count()
