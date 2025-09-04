@@ -1,5 +1,5 @@
 from django.core.management.base import BaseCommand
-from integrations.models import IntegrationProvider
+from connections.models import Provider
 
 
 class Command(BaseCommand):
@@ -7,7 +7,7 @@ class Command(BaseCommand):
     
     def handle(self, *args, **options):
         # Create Xero provider
-        xero_provider, created = IntegrationProvider.objects.get_or_create(
+        xero_provider, created = Provider.objects.get_or_create(
             name='xero',
             defaults={
                 'display_name': 'Xero',

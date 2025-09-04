@@ -4,7 +4,8 @@ from django.contrib import messages
 from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
 from turbo_helper import turbo_stream
 from django.core.paginator import Paginator
-from .models import Integration, Issue, IntegrationProvider, TransactionData, TransactionValidationStatus
+from .models import Integration, Issue, TransactionData, TransactionValidationStatus
+from connections.models import Provider
 from .managers import IntegrationManager
 from .services.base import IntegrationServiceRegistry
 from .utils import TokenRefreshError

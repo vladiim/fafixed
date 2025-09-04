@@ -17,6 +17,7 @@ from integrations.models import (
     IntegrationProvider, Integration, IntegrationCredential, 
     OAuthState, IntegrationSync
 )
+from connections.models import Provider
 
 
 @pytest.fixture
@@ -68,9 +69,63 @@ def credential(integration):
     )
 
 
+@pytest.mark.django_db  
+class TestProvider:
+    """Test new Provider model in connections app"""
+    
+    def test_provider_creation(self):
+        """Provider can be created with valid data"""
+        provider = Provider.objects.create(
+            name='xero',
+            display_name='Xero',
+            provider_type='xero',
+            auth_url_template='https://api.xero.com/oauth/authorize',
+            token_url='https://api.xero.com/oauth/token',
+            scopes_default=['accounting.transactions']
+        )
+        
+        assert provider.name == 'xero'
+        assert provider.display_name == 'Xero'
+        assert provider.is_active is True  # Default value
+        assert provider.created_at is not None
+        assert provider.updated_at is not None
+    
+    def test_provider_str_representation(self):
+        """Provider string representation uses display_name"""
+        provider = Provider.objects.create(
+            name='xero',
+            display_name='Xero',
+            provider_type='xero',
+            auth_url_template='https://api.xero.com/oauth/authorize',
+            token_url='https://api.xero.com/oauth/token'
+        )
+        assert str(provider) == 'Xero'
+    
+    def test_provider_name_uniqueness(self):
+        """Provider names must be unique globally"""
+        Provider.objects.create(
+            name='xero',
+            display_name='Xero',
+            provider_type='xero',
+            auth_url_template='https://api.xero.com/oauth/authorize',
+            token_url='https://api.xero.com/oauth/token'
+        )
+        
+        with pytest.raises(Exception):  # IntegrityError
+            from django.db import transaction
+            with transaction.atomic():
+                Provider.objects.create(
+                    name='xero',  # Same name
+                    display_name='Xero 2',
+                    provider_type='xero',
+                    auth_url_template='https://api.xero.com/oauth/authorize',
+                    token_url='https://api.xero.com/oauth/token'
+                )
+
+
 @pytest.mark.django_db
 class TestIntegrationProvider:
-    """Test Provider model behavior (currently IntegrationProvider)"""
+    """Test Provider model behavior (currently IntegrationProvider) - LEGACY"""
     
     def test_provider_creation(self, provider):
         """Provider can be created with valid data"""
@@ -585,3 +640,167 @@ class TestIntegrationSync:
         syncs = list(IntegrationSync.objects.all())
         assert syncs[0] == sync2  # Newer first
         assert syncs[1] == sync1
+
+
+@pytest.fixture
+def connection_provider():
+    """Fixture for new connections.Provider model"""
+    return Provider.objects.create(
+        name='xero',
+        display_name='Xero',
+        provider_type='xero',
+        auth_url_template='https://api.xero.com/oauth/authorize',
+        token_url='https://api.xero.com/oauth/token',
+        scopes_default=['accounting.transactions']
+    )
+
+
+@pytest.mark.django_db
+class TestConnection:
+    """Test new Connection model in connections app"""
+    
+    def test_connection_creation(self, user, account, connection_provider):
+        """Connection can be created with valid data"""
+        from connections.models import Connection
+        
+        connection = Connection.objects.create(
+            account=account,
+            created_by=user,
+            provider=connection_provider,
+            external_account_id='xero_123',
+            external_account_name='Test Xero Account',
+            organization_name='Test Organization'
+        )
+        
+        assert connection.account == account
+        assert connection.created_by == user
+        assert connection.provider == connection_provider
+        assert connection.external_account_id == 'xero_123'
+        assert connection.status == 'pending'  # Default value
+        assert connection.created_at is not None
+        assert connection.updated_at is not None
+    
+    def test_connection_prefix_id_generation(self, user, account, connection_provider):
+        """Connection automatically generates prefix_id starting with 'con_'"""
+        from connections.models import Connection
+        
+        connection = Connection.objects.create(
+            account=account,
+            created_by=user,
+            provider=connection_provider,
+            external_account_id='xero_456',
+            external_account_name='Test Account',
+            organization_name='Test Org'
+        )
+        
+        assert connection.prefix_id is not None
+        assert connection.prefix_id.startswith('con_')
+        assert len(connection.prefix_id) == 12  # 'con_' + 8 chars
+        assert connection.get_prefix_id() == connection.prefix_id
+    
+    def test_connection_str_representation(self, user, account, connection_provider):
+        """Connection string representation shows account, provider, and org name"""
+        from connections.models import Connection
+        
+        connection = Connection.objects.create(
+            account=account,
+            created_by=user,
+            provider=connection_provider,
+            external_account_id='xero_789',
+            external_account_name='Test Account',
+            organization_name='My Test Organization'
+        )
+        
+        expected = "Test Account - Xero - My Test Organization"
+        assert str(connection) == expected
+    
+    def test_connection_unique_constraint(self, user, account, connection_provider):
+        """Connection enforces unique constraint on account+provider+external_account_id"""
+        from connections.models import Connection
+        
+        # Create first connection
+        Connection.objects.create(
+            account=account,
+            created_by=user,
+            provider=connection_provider,
+            external_account_id='xero_duplicate',
+            external_account_name='Account 1',
+            organization_name='Org 1'
+        )
+        
+        # Try to create duplicate
+        with pytest.raises(Exception):  # IntegrityError
+            Connection.objects.create(
+                account=account,
+                created_by=user,
+                provider=connection_provider,
+                external_account_id='xero_duplicate',
+                external_account_name='Account 2',
+                organization_name='Org 2'
+            )
+    
+    def test_connection_status_choices(self, user, account, connection_provider):
+        """Connection accepts valid status choices"""
+        from connections.models import Connection
+        
+        valid_statuses = ['pending', 'active', 'expired', 'revoked', 'error']
+        
+        for status in valid_statuses:
+            connection = Connection.objects.create(
+                account=account,
+                created_by=user,
+                provider=connection_provider,
+                external_account_id=f'xero_{status}',
+                external_account_name='Test Account',
+                organization_name='Test Org',
+                status=status
+            )
+            assert connection.status == status
+    
+    def test_connection_config_json_storage(self, user, account, connection_provider):
+        """Connection can store provider-specific config as JSON"""
+        from connections.models import Connection
+        
+        config_data = {
+            'webhook_url': 'https://example.com/webhook',
+            'sync_frequency': 'daily',
+            'enabled_features': ['transactions', 'contacts']
+        }
+        
+        connection = Connection.objects.create(
+            account=account,
+            created_by=user,
+            provider=connection_provider,
+            external_account_id='xero_config',
+            external_account_name='Config Test',
+            organization_name='Config Org',
+            config=config_data
+        )
+        
+        assert connection.config == config_data
+    
+    def test_connection_ordering(self, user, account, connection_provider):
+        """Connections are ordered by creation date descending"""
+        from connections.models import Connection
+        
+        connection1 = Connection.objects.create(
+            account=account,
+            created_by=user,
+            provider=connection_provider,
+            external_account_id='first',
+            external_account_name='First',
+            organization_name='First Org'
+        )
+        
+        connection2 = Connection.objects.create(
+            account=account,
+            created_by=user,
+            provider=connection_provider,
+            external_account_id='second',
+            external_account_name='Second',
+            organization_name='Second Org'
+        )
+        
+        connections = list(Connection.objects.all())
+        assert connections[0] == connection2  # Newer first
+        assert connections[1] == connection1
