@@ -8,6 +8,22 @@ Please ensure your implementation Always Works™ for: $ARGUMENTS.
 
 Follow this systematic approach:
 
+## Tech Stack
+
+* uv used for python and packages
+* tailwind for css
+* javascript and interactivity is handled by Rails-like tech stack: Stimulus + Hotwire + ActionCable
+* Celery for background tasks
+* Server is loaded via /bin/dev
+
+## Style Guide
+
+Review specs/styleguide.md for coding standards and best practices.
+
+## Specs
+
+Write detailed specs for the feature including user flows, edge cases and rollout plans with checklists. Tick off the checklist as you go.
+
 ## Core Philosophy
 
 - "Should work" ≠ "does work" - Pattern matching isn't enough
