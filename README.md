@@ -11,20 +11,28 @@ FAFixed helps accountants identify and resolve data quality issues in their clie
 
 ## Architecture & Structure
 
-### Core Apps
+### Domain-Driven App Structure
 - **`core/`** - Base models (Account, User profiles) and shared utilities
-- **`integrations/`** - Main functionality for external system integrations (Xero)
+- **`shared/`** - Common models and utilities shared across domains
+- **`connections/`** - OAuth integration and API connection management
+- **`financial_data/`** - Transaction storage, Xero sync, and financial data management
+- **`data_quality/`** - Validation rules system and data quality checks
 - **`fafixed/`** - Django project configuration
+
+### Multi-App Refactoring (95% Complete)
+The project has been refactored from a monolithic `integrations/` app into focused domain apps:
+- **Phase 1-3**: âœ… Model decomposition, service layer creation, view decomposition
+- **Phase 4**: ðŸ”„ Final cleanup and monolith removal
 
 ### Key Models
 
 **Integration Flow:**
-- `Account` (core) ’ `Integration` ’ `IntegrationCredential` (encrypted OAuth tokens)
-- `Integration` ’ `TransactionData` ’ `TransactionLineItem`
-- `Integration` ’ `ValidationRun` ’ `Issue`
+- `Account` (core) ï¿½ `Integration` ï¿½ `IntegrationCredential` (encrypted OAuth tokens)
+- `Integration` ï¿½ `TransactionData` ï¿½ `TransactionLineItem`
+- `Integration` ï¿½ `ValidationRun` ï¿½ `Issue`
 
 **Transaction Data Model:**
-- Multi-tenant through `Integration` ’ `Account`
+- Multi-tenant through `Integration` ï¿½ `Account`
 - `TransactionData` stores bank transactions from Xero with rich metadata
 - Fields: amount, date, reference, description, contact, status, etc.
 - `TransactionLineItem` for detailed breakdowns
@@ -49,24 +57,49 @@ FAFixed helps accountants identify and resolve data quality issues in their clie
 - Supports full, incremental, and daily sync modes
 - Rate limiting and error handling built-in
 
-## Validation Rules System
+## Extensible Validation Rules System
 
-**Architecture:**
-- Plugin-based system with `ValidationRuleRegistry`
-- Base class `BaseValidationRule` for all rules
-- Rules auto-discovered from `integrations/validation/rules/`
+### Plugin-Based Architecture
+The validation system uses a plugin architecture to support unlimited rule types:
 
-**Duplicate Transaction Rule:**
-- Configurable matching criteria (amount, date, reference, etc.)
-- Groups transactions and identifies duplicates
-- Creates `Issue` records with detailed affected transaction data
-- Located at `integrations/validation/rules/duplicates.py:15`
+**Core Components:**
+- `ValidationRulePlugin` base class for all rule types
+- `ValidationPluginRegistry` for automatic plugin discovery
+- `ValidationRuleInstance` model for user-configured rule instances
+- Plugin-specific configuration forms and UI templates
 
-**Validation Engine:**
-- `ValidationEngine.run_validation()` executes rules for an integration
-- Creates `ValidationRun` records to track execution
-- Converts rule results to `Issue` records
-- Supports running specific rules or all enabled rules
+### Rule Type Categories
+
+**System Validation Rules** (`data_quality/validation/rule_types/simple/`)
+- Duplicate transaction detection
+- Missing data validation  
+- Suspicious amount patterns
+- Data integrity checks
+
+**User-Configurable Rules** (`data_quality/validation/rule_types/user_configurable/`)
+- Custom categorization rules with visual condition builder
+- Contact matching and assignment rules
+- Reference formatting and standardization
+- Business logic automation
+
+**AI-Powered Rules** (`data_quality/validation/rule_types/ai_powered/`)
+- Agentic expense categorization
+- Pattern-based anomaly detection
+- Fraud detection algorithms
+- Machine learning-based classification
+
+**Integration Rules** (`data_quality/validation/rule_types/integrations/`)
+- External service validations
+- Compliance checking
+- Third-party data enrichment
+- Cross-platform synchronization
+
+### Extensibility Features
+- **Plugin Interface**: Each rule type defines its own configuration UI, validation logic, and execution behavior
+- **Auto-Discovery**: New rule types are automatically registered when added to the rule_types directory
+- **Type-Specific UIs**: Simple rules use basic forms, user rules use visual builders, AI rules have model configuration interfaces
+- **Scalable Management**: Rules organized by category and capability in the management dashboard
+- **Future-Ready**: Architecture supports any validation pattern - from simple checks to complex agentic AI workflows
 
 ## Current UI Structure
 
@@ -141,11 +174,25 @@ The project uses a custom test runner (`core.test_runner.ColoredTestRunner`) tha
 
 ## Key Files & Locations
 
-- **Models**: `integrations/models.py` - Core data models
-- **Xero Service**: `integrations/services/xero_service.py` - Xero API integration
-- **Validation Engine**: `integrations/validation/engine.py` - Rule execution
-- **Duplicate Rule**: `integrations/validation/rules/duplicates.py` - Duplicate detection
-- **Views**: `integrations/views.py` - Web interface
-- **Templates**: `integrations/templates/` and `templates/` - UI templates
+### Domain Apps
+- **Financial Data**: `financial_data/models.py` - Transaction and line item models
+- **Connections**: `connections/models.py` - OAuth and API connection management
+- **Data Quality**: `data_quality/validation/` - Validation rules system and engine
+- **Shared**: `shared/models.py` - Common utilities and base models
 
-This foundation provides a solid base for extending the validation system and building additional transaction analysis interfaces.
+### Core Services
+- **Xero Integration**: `connections/services/xero_service.py` - Xero API operations
+- **Validation Engine**: `data_quality/validation/engine.py` - Rule execution framework
+- **Plugin Registry**: `data_quality/validation/registry.py` - Rule type management
+
+### Validation Rules
+- **Rule Plugins**: `data_quality/validation/rule_types/` - All validation rule implementations
+- **Duplicate Detection**: `data_quality/validation/rule_types/simple/duplicates.py`
+- **User Rules**: `data_quality/validation/rule_types/user_configurable/`
+- **AI Rules**: `data_quality/validation/rule_types/ai_powered/`
+
+### Views & Templates
+- **Domain Views**: Each app has focused views (`connections/views.py`, `financial_data/views.py`, etc.)
+- **Templates**: Domain-specific templates in each app's `templates/` directory
+
+This modular foundation supports unlimited validation rule types and provides clean separation of concerns for building sophisticated financial data analysis interfaces.
