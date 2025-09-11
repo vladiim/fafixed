@@ -16,7 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from integrations import views as integration_views
+from connections import views as connection_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -27,9 +27,9 @@ urlpatterns = [
     path('financial/', include('financial_data.urls')),
     path('quality/', include('data_quality.urls')),
     
-    # Legacy integrations URLs (for backward compatibility during transition)
+    # Legacy integrations URLs (for shared services)
     path('integrations/', include('integrations.urls')),
     
     # Direct Xero callback URL to match developer console configuration
-    path('xero/callback/', integration_views.xero_callback, name='xero_callback_direct'),
+    path('xero/callback/', connection_views.xero_callback, name='xero_callback_direct'),
 ]

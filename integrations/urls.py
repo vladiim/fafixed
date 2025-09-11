@@ -1,30 +1,20 @@
 from django.urls import path
 from . import views
 
+# integrations/urls.py
+#
+# All domain-specific URLs have been moved to their respective apps:
+# - OAuth & connection URLs → connections/urls.py  
+# - Transaction URLs → financial_data/urls.py
+# - Issue management URLs → data_quality/urls.py
+#
+# This file now contains only shared service endpoints
+
 urlpatterns = [
-    path('xero/connect/', views.xero_connect, name='xero_connect'),
-    path('xero/callback/', views.xero_callback, name='xero_callback'),
-    path('xero/chart-accounts/<str:integration_prefix_id>/', views.xero_chart_accounts, name='xero_chart_accounts'),
-    path('import-chart-accounts/', views.import_chart_accounts, name='import_chart_accounts'),
-    path('test/<str:integration_prefix_id>/', views.test_integration, name='test_integration'),
-    path('sync/<str:integration_prefix_id>/', views.sync_integration, name='sync_integration'),
-    path('refresh-sync/<str:integration_prefix_id>/', views.refresh_sync_integration, name='refresh_sync_integration'),
-    path('revoke/<str:integration_prefix_id>/', views.revoke_integration, name='revoke_integration'),
-    path('delete/<str:integration_prefix_id>/', views.delete_integration, name='delete_integration'),
-    path('transactions/<str:integration_prefix_id>/', views.transaction_list, name='transaction_list'),
-    path('transactions/<str:transaction_prefix_id>/actions/', views.transaction_actions, name='transaction_actions'),
-    path('transactions/<str:transaction_prefix_id>/run-validations/', views.run_transaction_validations, name='run_transaction_validations'),
-    path('transactions/<str:transaction_prefix_id>/refresh-status/', views.refresh_transaction_status, name='refresh_transaction_status'),
+    # Shared services health check
+    path('health/', views.health_check, name='integrations_health'),
     
-    # Transaction editing (super_admin only)
-    path('transactions/<str:transaction_prefix_id>/edit/', views.transaction_edit, name='transaction_edit'),
-    path('transactions/<str:transaction_prefix_id>/edit-check/', views.transaction_edit_check, name='transaction_edit_check'),
-    
-    # Issue management
-    path('issues/<str:issue_prefix_id>/', views.issue_detail, name='issue_detail'),
-    path('issues/<str:issue_prefix_id>/resolve/', views.resolve_issue, name='resolve_issue'),
-    path('issues/bulk-resolve/', views.bulk_resolve_issues, name='bulk_resolve_issues'),
-    
-    # Handle callback when accessed directly from /xero/callback/
-    path('', views.xero_callback, name='xero_callback_direct_handler'),
+    # Keep this legacy callback handler for backward compatibility
+    # TODO: Remove after confirming all external OAuth configs point to /connections/xero/callback/
+    # path('', views.xero_callback, name='xero_callback_legacy_handler'),
 ]
