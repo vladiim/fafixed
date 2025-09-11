@@ -10,13 +10,15 @@ from django.contrib.auth.models import User
 from datetime import date
 
 from core.models import Account
-from integrations.models import Integration, IntegrationProvider, Issue, TransactionData
-from integrations.validation.engine import ValidationEngine
-from integrations.validation.base import ValidationResult, ValidationSeverity
+from connections.models import Connection, Provider
+from financial_data.models import Transaction
+from data_quality.models import Issue
+from data_quality.validation.engine import ValidationEngine
+from data_quality.validation.base import ValidationResult, ValidationSeverity
 from .base_validation_test import BaseValidationTestCase
 
 
-class ValidationEngineIntegrationTestCase(BaseValidationTestCase):
+class ValidationEngineConnectionTestCase(BaseValidationTestCase):
     
     fixtures = ['test_integration_stack.json']
     
@@ -25,8 +27,8 @@ class ValidationEngineIntegrationTestCase(BaseValidationTestCase):
         super().setUp()  # This handles cleanup
         
         # Ensure duplicate rule is registered for ValidationEngine tests
-        from integrations.validation.registry import ValidationRuleRegistry
-        from integrations.validation.rules.duplicates import DuplicateTransactionRule
+        from data_quality.validation.registry import ValidationRuleRegistry
+        from data_quality.validation.rules.duplicates import DuplicateTransactionRule
         if not ValidationRuleRegistry.is_registered('duplicate_transactions'):
             ValidationRuleRegistry.register(DuplicateTransactionRule)
         
@@ -39,10 +41,10 @@ class ValidationEngineIntegrationTestCase(BaseValidationTestCase):
         self.account1 = Account.objects.get(pk=1)
         self.account2 = Account.objects.create(name=f'Account 2 {test_id}', account_type='organization')
         
-        self.xero_provider = IntegrationProvider.objects.get(pk=1)
+        self.xero_provider = Provider.objects.get(pk=1)
         
-        # Create integrations for different accounts and charts
-        self.integration_1a = Integration.objects.create(
+        # Create connections for different accounts and charts
+        self.connection_1a = Connection.objects.create(
             account=self.account1,
             created_by=self.user1,
             provider=self.xero_provider,
@@ -52,7 +54,7 @@ class ValidationEngineIntegrationTestCase(BaseValidationTestCase):
             status='active'
         )
         
-        self.integration_1b = Integration.objects.create(
+        self.integration_1b = Connection.objects.create(
             account=self.account1,
             created_by=self.user1,
             provider=self.xero_provider,
@@ -62,7 +64,7 @@ class ValidationEngineIntegrationTestCase(BaseValidationTestCase):
             status='active'
         )
         
-        self.integration_2a = Integration.objects.create(
+        self.integration_2a = Connection.objects.create(
             account=self.account2,
             created_by=self.user2,
             provider=self.xero_provider,
@@ -80,8 +82,8 @@ class ValidationEngineIntegrationTestCase(BaseValidationTestCase):
     def create_test_transactions(self):
         """Create test transaction data"""
         # Duplicate transactions in integration 1a
-        TransactionData.objects.create(
-            integration=self.integration_1a,
+        Transaction.objects.create(
+            connection=self.integration_1a,
             external_transaction_id='txn_001',
             amount=100.00,
             date=date(2024, 1, 1),  # Use date object instead of string
@@ -90,8 +92,8 @@ class ValidationEngineIntegrationTestCase(BaseValidationTestCase):
             contact_name='Test Contact'
         )
         
-        TransactionData.objects.create(
-            integration=self.integration_1a,
+        Transaction.objects.create(
+            connection=self.integration_1a,
             external_transaction_id='txn_002',
             amount=100.00,  # Same amount
             date=date(2024, 1, 1),  # Same date - use date object
@@ -101,8 +103,8 @@ class ValidationEngineIntegrationTestCase(BaseValidationTestCase):
         )
         
         # Similar transactions in integration 1b (different chart)
-        TransactionData.objects.create(
-            integration=self.integration_1b,
+        Transaction.objects.create(
+            connection=self.integration_1b,
             external_transaction_id='txn_003',
             amount=100.00,
             date=date(2024, 1, 1),  # Use date object
@@ -111,8 +113,8 @@ class ValidationEngineIntegrationTestCase(BaseValidationTestCase):
             contact_name='Test Contact'
         )
         
-        TransactionData.objects.create(
-            integration=self.integration_1b,
+        Transaction.objects.create(
+            connection=self.integration_1b,
             external_transaction_id='txn_004',
             amount=100.00,
             date=date(2024, 1, 1),  # Use date object
@@ -122,8 +124,8 @@ class ValidationEngineIntegrationTestCase(BaseValidationTestCase):
         )
         
         # Duplicate transactions in integration 2a (different account, same chart as 1a)
-        TransactionData.objects.create(
-            integration=self.integration_2a,
+        Transaction.objects.create(
+            connection=self.integration_2a,
             external_transaction_id='txn_005',
             amount=300.00,
             date=date(2024, 1, 3),  # Use date object
@@ -132,8 +134,8 @@ class ValidationEngineIntegrationTestCase(BaseValidationTestCase):
             contact_name='Test Contact Account 2'
         )
         
-        TransactionData.objects.create(
-            integration=self.integration_2a,
+        Transaction.objects.create(
+            connection=self.integration_2a,
             external_transaction_id='txn_006',
             amount=300.00,  # Same amount - should create duplicate
             date=date(2024, 1, 3),  # Same date - use date object
@@ -153,7 +155,7 @@ class ValidationEngineIntegrationTestCase(BaseValidationTestCase):
         self.assertGreater(validation_run_1a.issues_found, 0)
         
         # Check that issue was created with proper scoping
-        issues_1a = Issue.objects.filter(integration=self.integration_1a)
+        issues_1a = Issue.objects.filter(connection=self.integration_1a)
         self.assertGreater(issues_1a.count(), 0)
         
         issue_1a = issues_1a.first()
@@ -166,7 +168,7 @@ class ValidationEngineIntegrationTestCase(BaseValidationTestCase):
         validation_run_1b = ValidationEngine.run_validation(self.integration_1b)
         
         # Should create separate issue for different chart
-        issues_1b = Issue.objects.filter(integration=self.integration_1b)
+        issues_1b = Issue.objects.filter(connection=self.integration_1b)
         self.assertGreater(issues_1b.count(), 0)
         
         issue_1b = issues_1b.first()
@@ -216,7 +218,7 @@ class ValidationEngineIntegrationTestCase(BaseValidationTestCase):
         validation_run_1 = ValidationEngine.run_validation(self.integration_1a)
         
         # Should create initial issue
-        initial_issues = Issue.objects.filter(integration=self.integration_1a)
+        initial_issues = Issue.objects.filter(connection=self.integration_1a)
         self.assertEqual(initial_issues.count(), 1)
         
         initial_issue = initial_issues.first()
@@ -224,8 +226,8 @@ class ValidationEngineIntegrationTestCase(BaseValidationTestCase):
         initial_occurrences = len(initial_issue.occurrence_ids)
         
         # Add more duplicate transactions
-        TransactionData.objects.create(
-            integration=self.integration_1a,
+        Transaction.objects.create(
+            connection=self.integration_1a,
             external_transaction_id='txn_007',
             amount=200.00,
             date=date(2024, 1, 2),  # Use date object
@@ -234,8 +236,8 @@ class ValidationEngineIntegrationTestCase(BaseValidationTestCase):
             contact_name='Test Contact'
         )
         
-        TransactionData.objects.create(
-            integration=self.integration_1a,
+        Transaction.objects.create(
+            connection=self.integration_1a,
             external_transaction_id='txn_008',
             amount=200.00,  # Same amount
             date=date(2024, 1, 2),  # Same date - use date object
@@ -248,7 +250,7 @@ class ValidationEngineIntegrationTestCase(BaseValidationTestCase):
         validation_run_2 = ValidationEngine.run_validation(self.integration_1a)
         
         # Should still be only one issue (aggregated)
-        updated_issues = Issue.objects.filter(integration=self.integration_1a)
+        updated_issues = Issue.objects.filter(connection=self.integration_1a)
         self.assertEqual(updated_issues.count(), 1)
         
         # But issue should be updated with new occurrences
@@ -264,7 +266,7 @@ class ValidationEngineIntegrationTestCase(BaseValidationTestCase):
         validation_run = ValidationEngine.run_validation(self.integration_1a)
         
         # Get created issues
-        issues = Issue.objects.filter(integration=self.integration_1a)
+        issues = Issue.objects.filter(connection=self.integration_1a)
         
         for issue in issues:
             # All issues should have prefix_id
@@ -283,7 +285,7 @@ class ValidationEngineIntegrationTestCase(BaseValidationTestCase):
         ValidationEngine.run_validation(self.integration_1a)
         
         # Get created issues
-        issues = Issue.objects.filter(integration=self.integration_1a)
+        issues = Issue.objects.filter(connection=self.integration_1a)
         
         for issue in issues:
             # Category should be rule name
@@ -300,7 +302,7 @@ class ValidationEngineIntegrationTestCase(BaseValidationTestCase):
         validation_run = ValidationEngine.run_validation(self.integration_1a)
         
         # Get created issues
-        issues = Issue.objects.filter(integration=self.integration_1a)
+        issues = Issue.objects.filter(connection=self.integration_1a)
         self.assertGreater(issues.count(), 0)
         
         issue = issues.first()

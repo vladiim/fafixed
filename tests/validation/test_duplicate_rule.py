@@ -8,10 +8,11 @@ from datetime import date, timedelta
 from django.contrib.auth.models import User
 
 from core.models import Account
-from integrations.models import Integration, IntegrationProvider, TransactionData
-from integrations.validation.rules.duplicates import DuplicateTransactionRule
-from integrations.validation.base import ValidationSeverity
-from integrations.validation.registry import ValidationRuleRegistry
+from connections.models import Connection, Provider
+from financial_data.models import Transaction
+from data_quality.validation.rules.duplicates import DuplicateTransactionRule
+from data_quality.validation.base import ValidationSeverity
+from data_quality.validation.registry import ValidationRuleRegistry
 from .base_validation_test import BaseValidationTestCase
 
 
@@ -39,7 +40,7 @@ class TestDuplicateTransactionRule(BaseValidationTestCase):
         )
         
         # Create integration provider
-        self.provider = IntegrationProvider.objects.create(
+        self.provider = Provider.objects.create(
             name=f'test_xero_dup_{test_id}',
             display_name=f'Test Xero Dup {test_id}',
             provider_type='xero',
@@ -48,7 +49,7 @@ class TestDuplicateTransactionRule(BaseValidationTestCase):
         )
         
         # Create integration
-        self.integration = Integration.objects.create(
+        self.integration = Connection.objects.create(
             account=self.account,
             provider=self.provider,
             created_by=self.user,
@@ -88,8 +89,8 @@ class TestDuplicateTransactionRule(BaseValidationTestCase):
     def test_no_duplicates_found(self):
         """Test validation when no duplicate transactions exist."""
         # Create unique transactions
-        TransactionData.objects.create(
-            integration=self.integration,
+        Transaction.objects.create(
+            connection=self.integration,
             external_transaction_id='txn_1',
             external_account_id='acc_1',
             transaction_type='spend',
@@ -99,8 +100,8 @@ class TestDuplicateTransactionRule(BaseValidationTestCase):
             status='authorised'
         )
         
-        TransactionData.objects.create(
-            integration=self.integration,
+        Transaction.objects.create(
+            connection=self.integration,
             external_transaction_id='txn_2',
             external_account_id='acc_1',
             transaction_type='spend',
@@ -122,8 +123,8 @@ class TestDuplicateTransactionRule(BaseValidationTestCase):
         """Test validation when exact duplicate transactions exist."""
         # Create duplicate transactions
         for i in range(3):
-            TransactionData.objects.create(
-                integration=self.integration,
+            Transaction.objects.create(
+                connection=self.integration,
                 external_transaction_id=f'txn_{i}',
                 external_account_id='acc_1',
                 transaction_type='spend',
@@ -150,8 +151,8 @@ class TestDuplicateTransactionRule(BaseValidationTestCase):
         """Test validation with multiple groups of duplicates."""
         # Create first group of duplicates
         for i in range(2):
-            TransactionData.objects.create(
-                integration=self.integration,
+            Transaction.objects.create(
+                connection=self.integration,
                 external_transaction_id=f'group1_txn_{i}',
                 external_account_id='acc_1',
                 transaction_type='spend',
@@ -163,8 +164,8 @@ class TestDuplicateTransactionRule(BaseValidationTestCase):
         
         # Create second group of duplicates
         for i in range(3):
-            TransactionData.objects.create(
-                integration=self.integration,
+            Transaction.objects.create(
+                connection=self.integration,
                 external_transaction_id=f'group2_txn_{i}',
                 external_account_id='acc_1',
                 transaction_type='receive',
@@ -186,8 +187,8 @@ class TestDuplicateTransactionRule(BaseValidationTestCase):
         """Test that transactions with empty references are ignored by default."""
         # Create transactions with empty references - should not be considered duplicates
         for i in range(3):
-            TransactionData.objects.create(
-                integration=self.integration,
+            Transaction.objects.create(
+                connection=self.integration,
                 external_transaction_id=f'txn_{i}',
                 external_account_id='acc_1',
                 transaction_type='spend',
@@ -207,8 +208,8 @@ class TestDuplicateTransactionRule(BaseValidationTestCase):
         """Test including transactions with empty references when configured."""
         # Create transactions with empty references
         for i in range(2):
-            TransactionData.objects.create(
-                integration=self.integration,
+            Transaction.objects.create(
+                connection=self.integration,
                 external_transaction_id=f'txn_{i}',
                 external_account_id='acc_1',
                 transaction_type='spend',
@@ -229,8 +230,8 @@ class TestDuplicateTransactionRule(BaseValidationTestCase):
     def test_ignore_pending_status(self):
         """Test that pending transactions are ignored by default."""
         # Create duplicate transactions, some with pending status
-        TransactionData.objects.create(
-            integration=self.integration,
+        Transaction.objects.create(
+            connection=self.integration,
             external_transaction_id='txn_1',
             external_account_id='acc_1',
             transaction_type='spend',
@@ -240,8 +241,8 @@ class TestDuplicateTransactionRule(BaseValidationTestCase):
             status='authorised'
         )
         
-        TransactionData.objects.create(
-            integration=self.integration,
+        Transaction.objects.create(
+            connection=self.integration,
             external_transaction_id='txn_2',
             external_account_id='acc_1',
             transaction_type='spend',
@@ -260,8 +261,8 @@ class TestDuplicateTransactionRule(BaseValidationTestCase):
     def test_custom_match_fields(self):
         """Test duplicate detection with custom match fields."""
         # Create transactions that match on amount and date but not reference
-        TransactionData.objects.create(
-            integration=self.integration,
+        Transaction.objects.create(
+            connection=self.integration,
             external_transaction_id='txn_1',
             external_account_id='acc_1',
             transaction_type='spend',
@@ -271,8 +272,8 @@ class TestDuplicateTransactionRule(BaseValidationTestCase):
             status='authorised'
         )
         
-        TransactionData.objects.create(
-            integration=self.integration,
+        Transaction.objects.create(
+            connection=self.integration,
             external_transaction_id='txn_2',
             external_account_id='acc_1',
             transaction_type='spend',
@@ -297,8 +298,8 @@ class TestDuplicateTransactionRule(BaseValidationTestCase):
         """Test minimum duplicates threshold configuration."""
         # Create 2 duplicate transactions
         for i in range(2):
-            TransactionData.objects.create(
-                integration=self.integration,
+            Transaction.objects.create(
+                connection=self.integration,
                 external_transaction_id=f'txn_{i}',
                 external_account_id='acc_1',
                 transaction_type='spend',
@@ -322,8 +323,8 @@ class TestDuplicateTransactionRule(BaseValidationTestCase):
         """Test the structure of validation results."""
         # Create duplicate transactions
         for i in range(2):
-            TransactionData.objects.create(
-                integration=self.integration,
+            Transaction.objects.create(
+                connection=self.integration,
                 external_transaction_id=f'txn_{i}',
                 external_account_id='acc_1',
                 transaction_type='spend',

@@ -3,10 +3,12 @@ Base test class for validation tests with proper cleanup.
 """
 
 from django.test import TestCase
-from integrations.models import Integration, IntegrationProvider, Issue, TransactionData, ValidationRun
+from connections.models import Connection, Provider
+from financial_data.models import Transaction
+from data_quality.models import Issue, ValidationRun
 from core.models import Account
 from django.contrib.auth.models import User
-from integrations.validation.registry import ValidationRuleRegistry
+from data_quality.validation.registry import ValidationRuleRegistry
 
 
 class BaseValidationTestCase(TestCase):
@@ -46,13 +48,13 @@ class BaseValidationTestCase(TestCase):
         
         # Clear transaction data (preserve any fixture transactions if they exist)
         # Since we're creating fresh transaction data in each test, this should be safe
-        TransactionData.objects.all().delete()
+        Transaction.objects.all().delete()
         
-        # Clear test integrations (preserve fixture integrations with IDs 1, 2, 3)  
-        Integration.objects.exclude(id__in=[1, 2, 3]).delete()
+        # Clear test connections (preserve fixture connections with IDs 1, 2, 3)  
+        Connection.objects.exclude(id__in=[1, 2, 3]).delete()
         
         # Clear test providers (not from fixtures - fixtures have ID 1)
-        IntegrationProvider.objects.exclude(id__in=[1]).delete()
+        Provider.objects.exclude(id__in=[1]).delete()
         
         # Clear test accounts (preserve fixture accounts with ID 1)
         Account.objects.exclude(id__in=[1]).delete()
@@ -66,15 +68,15 @@ class BaseValidationTestCase(TestCase):
         # This runs after all tests in a class complete
         ValidationRun.objects.all().delete()
         Issue.objects.all().delete()
-        TransactionData.objects.all().delete()
+        Transaction.objects.all().delete()
         
-        # Clear all test integrations
-        Integration.objects.exclude(
-            id__in=[1, 2, 3]  # Preserve fixture integrations if needed
+        # Clear all test connections
+        Connection.objects.exclude(
+            id__in=[1, 2, 3]  # Preserve fixture connections if needed
         ).delete()
         
         # Clear test providers
-        IntegrationProvider.objects.filter(
+        Provider.objects.filter(
             name__startswith='test_'
         ).delete()
         
