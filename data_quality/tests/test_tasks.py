@@ -7,7 +7,12 @@ from django.utils import timezone
 from datetime import timedelta
 
 from connections.models import Connection, Provider
-from data_quality.models import XeroTrackingCategory, XeroTrackingOption
+from data_quality.models import (
+    XeroTrackingCategory, 
+    XeroTrackingOption,
+    CategoryDetectionRule,
+    CategorySuggestion
+)
 from data_quality.tasks import (
     sync_tracking_categories_for_connection,
     sync_tracking_categories_for_all_connections,
@@ -279,3 +284,82 @@ class TrackingCategoriesTasksTest(TestCase):
         
         # Verify data still exists
         self.assertTrue(XeroTrackingCategory.objects.filter(id=category.id).exists())
+
+
+class CategoryVerificationTaskTest(TestCase):
+    """Test category verification tasks"""
+    
+    def setUp(self):
+        """Set up test data"""
+        self.user = User.objects.create_user(
+            username='testuser',
+            email='test@example.com',
+            password='testpass123'
+        )
+        self.account = Account.objects.create(
+            name='Test Account',
+            account_type='organization'
+        )
+        self.provider = Provider.objects.create(
+            name='xero',
+            display_name='Xero',
+            provider_type='xero',
+            auth_url_template='https://api.xero.com/oauth/authorize',
+            token_url='https://api.xero.com/oauth/token'
+        )
+        self.connection = Connection.objects.create(
+            account=self.account,
+            provider=self.provider,
+            external_account_id='test-xero-org-id',
+            external_account_name='Test Xero Org',
+            organization_name='Test Organization',
+            status='active',
+            created_by=self.user
+        )
+        
+        # Create test tracking category and rule
+        self.category = XeroTrackingCategory.objects.create(
+            connection=self.connection,
+            xero_category_id='office-supplies-cat',
+            name='Office Supplies',
+            status='ACTIVE'
+        )
+        
+        self.rule = CategoryDetectionRule.objects.create(
+            connection=self.connection,
+            name='Office Supplies Rule',
+            suggested_category=self.category,
+            conditions=[{'field': 'description', 'operator': 'CONTAINS', 'value': 'office'}]
+        )
+        
+        self.suggestion = CategorySuggestion.objects.create(
+            connection=self.connection,
+            detection_rule=self.rule,
+            xero_transaction_id='txn-123',
+            suggested_category=self.category,
+            status='APPLIED'
+        )
+
+    def test_verify_transaction_categorization_success(self):
+        """Test successful verification task execution"""
+        from data_quality.tasks import verify_transaction_categorization
+        
+        # Execute task
+        result = verify_transaction_categorization(self.suggestion.id)
+        
+        # Verify placeholder result
+        self.assertTrue(result['success'])
+        self.assertEqual(result['suggestion_id'], self.suggestion.id)
+        self.assertEqual(result['transaction_id'], 'txn-123')
+        self.assertEqual(result['verification_status'], 'pending_implementation')
+
+    def test_verify_transaction_categorization_invalid_suggestion(self):
+        """Test verification task with invalid suggestion ID"""
+        from data_quality.tasks import verify_transaction_categorization
+        
+        # Execute task with invalid ID
+        result = verify_transaction_categorization(99999)
+        
+        # Verify error handling
+        self.assertFalse(result['success'])
+        self.assertIn('not found', result['error'])

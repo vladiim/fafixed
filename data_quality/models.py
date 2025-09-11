@@ -496,6 +496,16 @@ class CategoryDetectionRule(models.Model):
     is_active = models.BooleanField(default=True)
     priority = models.IntegerField(default=0, help_text="Higher numbers = higher priority")
     
+    # Rule statistics
+    applied_count = models.IntegerField(
+        default=0, 
+        help_text="Number of suggestions that were applied by users"
+    )
+    ignored_count = models.IntegerField(
+        default=0, 
+        help_text="Number of suggestions that were ignored by users"
+    )
+    
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -552,6 +562,16 @@ class CategorySuggestion(models.Model):
         related_name='suggestions'
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    
+    # User decision tracking
+    decided_by = models.ForeignKey(
+        'auth.User', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='category_decisions'
+    )
+    decided_at = models.DateTimeField(null=True, blank=True)
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)

@@ -182,3 +182,59 @@ def cleanup_archived_tracking_data(days_old=90):
     logger.info(f"Cleaned up {categories_count} archived categories and {options_count} archived options")
     
     return result
+
+
+@shared_task(bind=True, max_retries=3)
+def verify_transaction_categorization(self, suggestion_id):
+    """
+    Verify that a transaction has been correctly categorized in Xero.
+    
+    This task is queued when users choose "Mark Done" or "Fix" actions
+    to verify that the categorization was applied correctly.
+    
+    Args:
+        suggestion_id: ID of the CategorySuggestion to verify
+        
+    Returns:
+        Dict with verification results
+    """
+    try:
+        from data_quality.models import CategorySuggestion
+        
+        suggestion = CategorySuggestion.objects.get(id=suggestion_id)
+        logger.info(f"Starting transaction categorization verification for suggestion {suggestion_id}")
+        
+        # TODO: Implement Xero API call to fetch transaction and verify categorization
+        # For now, this is a placeholder that will be implemented when Xero API integration is ready
+        
+        result = {
+            'success': True,
+            'suggestion_id': suggestion_id,
+            'transaction_id': suggestion.xero_transaction_id,
+            'verification_status': 'pending_implementation',
+            'message': 'Xero API verification not yet implemented - placeholder task'
+        }
+        
+        logger.info(f"Transaction categorization verification placeholder completed for suggestion {suggestion_id}")
+        return result
+        
+    except CategorySuggestion.DoesNotExist:
+        logger.error(f"CategorySuggestion {suggestion_id} not found for verification")
+        return {
+            'success': False,
+            'error': f'CategorySuggestion {suggestion_id} not found'
+        }
+        
+    except Exception as e:
+        logger.error(f"Error verifying transaction categorization for suggestion {suggestion_id}: {e}", exc_info=True)
+        
+        # Retry on unexpected errors (only if we're in a real Celery worker, not during tests)
+        if hasattr(self, 'request') and self.request.retries < self.max_retries:
+            countdown = 60 * (2 ** self.request.retries)  # Exponential backoff
+            logger.info(f"Retrying transaction verification in {countdown} seconds (attempt {self.request.retries + 1})")
+            self.retry(countdown=countdown, exc=e)
+        
+        return {
+            'success': False,
+            'error': str(e)
+        }
