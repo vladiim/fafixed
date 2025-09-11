@@ -21,7 +21,15 @@ from integrations import views as integration_views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('core.urls')),
+    
+    # New domain-specific URL patterns
+    path('connections/', include('connections.urls')),
+    path('financial/', include('financial_data.urls')),
+    path('quality/', include('data_quality.urls')),
+    
+    # Legacy integrations URLs (for backward compatibility during transition)
     path('integrations/', include('integrations.urls')),
+    
     # Direct Xero callback URL to match developer console configuration
     path('xero/callback/', integration_views.xero_callback, name='xero_callback_direct'),
 ]
