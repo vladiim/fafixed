@@ -52,7 +52,7 @@
                                         <div class="w-2 h-2 bg-brand-red rounded-full mr-2"></div>
                                         <span class="text-xs text-red-600">Connection error</span>
                                     </div>
-                                    <a href="{% url 'xero_connect' %}" class="text-xs text-brand-red hover:underline font-medium">
+                                    <a href="{% url 'connections:xero_connect' %}" class="text-xs text-brand-red hover:underline font-medium">
                                         Reconnect
                                     </a>
                                 {% elif integration.has_selected_accounts %}
@@ -62,14 +62,14 @@
                                     </div>
                                     <div class="flex items-center space-x-2 mt-2">
                                         {% if integration.transaction_count > 0 %}
-                                        <a href="{% url 'transaction_list' integration.prefix_id %}" class="text-xs text-brand-black hover:underline font-medium">
+                                        <a href="{% url 'financial_data:transaction_list' integration.prefix_id %}" class="text-xs text-brand-black hover:underline font-medium">
                                             {{ integration.transaction_count }} transactions
                                         </a>
                                         {% else %}
                                         <span class="text-xs text-gray-500">{{ integration.transaction_count }} transactions</span>
                                         {% endif %}
                                         {% if integration.needs_reconnect %}
-                                        <a href="{% url 'xero_connect' %}" class="text-xs text-orange-600 hover:underline font-medium">
+                                        <a href="{% url 'connections:xero_connect' %}" class="text-xs text-orange-600 hover:underline font-medium">
                                             Reconnect
                                         </a>
                                         {% endif %}
@@ -79,19 +79,19 @@
                                         <div class="w-2 h-2 bg-orange-400 rounded-full mr-2"></div>
                                         <span class="text-xs text-orange-600">No client organisations selected</span>
                                     </div>
-                                    <a href="{% url 'xero_chart_accounts' integration.prefix_id %}" class="text-xs text-brand-black hover:underline font-medium">
+                                    <a href="{% url 'financial_data:xero_chart_accounts' integration.prefix_id %}" class="text-xs text-brand-black hover:underline font-medium">
                                         Select client organisations
                                     </a>
                                 {% endif %}
                             </div>
                             <div class="mt-2 flex items-center gap-2 flex-wrap">
                                 {% if integration.has_selected_accounts %}
-                                <a href="{% url 'refresh_sync_integration' integration.prefix_id %}" data-turbo="false" class="inline-flex items-center px-2 py-1 text-xs font-medium text-brand-black bg-gray-100 hover:bg-gray-200 rounded transition-colors">
+                                <a href="{% url 'connections:refresh_sync_integration' integration.prefix_id %}" data-turbo="false" class="inline-flex items-center px-2 py-1 text-xs font-medium text-brand-black bg-gray-100 hover:bg-gray-200 rounded transition-colors">
                                     <i class="fas fa-sync-alt mr-1"></i>
                                     Refresh Sync
                                 </a>
                                 {% endif %}
-                                <a href="{% url 'delete_integration' integration.prefix_id %}" class="inline-flex items-center px-2 py-1 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded transition-colors">
+                                <a href="{% url 'connections:delete_integration' integration.prefix_id %}" class="inline-flex items-center px-2 py-1 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded transition-colors">
                                     <i class="fas fa-trash mr-1"></i>
                                     Remove
                                 </a>
@@ -101,7 +101,7 @@
                         <div class="text-center p-4 text-gray-500">
                             <i class="fas fa-plug text-2xl mb-2"></i>
                             <p class="text-sm">No accounts connected</p>
-                            <a href="{% url 'xero_connect' %}" class="text-brand-black hover:underline text-sm font-medium" data-turbo="false">
+                            <a href="{% url 'connections:xero_connect' %}" class="text-brand-black hover:underline text-sm font-medium" data-turbo="false">
                                 Connect Xero
                             </a>
                         </div>
@@ -109,13 +109,24 @@
                         
                         <!-- Add Account Button -->
                         <div class="mt-4 pt-4 border-t border-gray-200">
-                            <a href="{% url 'xero_connect' %}" 
+                            <a href="{% url 'connections:xero_connect' %}" 
                                class="flex items-center justify-center w-full p-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-brand-green hover:bg-brand-green hover:bg-opacity-5 transition-colors group" 
                                data-turbo="false">
                                 <i class="fas fa-plus text-gray-400 group-hover:text-brand-green mr-2"></i>
                                 <span class="text-sm font-medium text-gray-600 group-hover:text-brand-green">Add Account</span>
                             </a>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Agent Checks Navigation -->
+                <div class="mt-8">
+                    <h3 class="font-heading font-semibold text-brand-black mb-4">Agent Checks</h3>
+                    <div class="space-y-2">
+                        <a href="{% url 'data_quality:agent_checks' %}" class="flex items-center p-3 rounded-lg hover:bg-gray-50 transition-colors group">
+                            <i class="fas fa-shield-alt text-gray-400 group-hover:text-brand-black mr-3"></i>
+                            <span class="text-sm font-medium text-gray-700 group-hover:text-brand-black">Validation Rules</span>
+                        </a>
                     </div>
                 </div>
             </div>
@@ -181,7 +192,7 @@
                         <div class="flex items-center space-x-3">
                             <span class="text-sm text-gray-500">{{ total_issues }} total</span>
                             {% if has_integrations %}
-                            <a href="{% url 'refresh_sync_integration' integrations.0.prefix_id %}" 
+                            <a href="{% url 'connections:refresh_sync_integration' integrations.0.prefix_id %}" 
                                data-turbo="false" 
                                class="inline-flex items-center px-3 py-1 text-xs font-medium text-brand-black bg-gray-100 hover:bg-gray-200 rounded transition-colors">
                                 <i class="fas fa-sync-alt mr-1"></i>
@@ -195,7 +206,7 @@
                 <!-- Content Area - Issues List or Enhanced Empty State -->
                 {% if issues %}
                     <!-- Issues exist - show list with bulk actions -->
-                    <form action="{% url 'bulk_resolve_issues' %}" method="post" data-turbo="false" 
+                    <form action="{% url 'data_quality:bulk_resolve_issues' %}" method="post" data-turbo="false" 
                           data-controller="bulk-action"
                           data-bulk-action-action-text-value="Mark as Resolved"
                           data-bulk-action-action-text-plural-value="Mark %count% Issues as Resolved"
@@ -230,7 +241,7 @@
                         {% for issue in issues %}
                         <div class="relative group">
                             <!-- Clickable overlay for entire row -->
-                            <a href="{% url 'issue_detail' issue.prefix_id %}" class="absolute inset-0 z-10"></a>
+                            <a href="{% url 'data_quality:issue_detail' issue.prefix_id %}" class="absolute inset-0 z-10"></a>
                             
                             <div class="p-6 hover:bg-gray-50 transition-colors">
                                 <div class="flex items-start space-x-4">
@@ -324,14 +335,14 @@
                                 <p class="text-gray-600 mb-6">No issues detected yet. Sync your transactions to start monitoring data quality.</p>
                                 <div class="flex items-center justify-center space-x-3">
                                     {% if has_integrations %}
-                                    <a href="{% url 'refresh_sync_integration' integrations.0.prefix_id %}" 
+                                    <a href="{% url 'connections:refresh_sync_integration' integrations.0.prefix_id %}" 
                                        data-turbo="false" 
                                        class="btn-primary">
                                         <i class="fas fa-sync-alt mr-2"></i>
                                         Sync Transactions
                                     </a>
                                     {% endif %}
-                                    <a href="{% url 'xero_connect' %}" class="btn-secondary" data-turbo="false">
+                                    <a href="{% url 'connections:xero_connect' %}" class="btn-secondary" data-turbo="false">
                                         <i class="fas fa-plus mr-2"></i>
                                         Connect Account
                                     </a>
@@ -346,7 +357,7 @@
                                 <h3 class="text-lg font-heading font-semibold text-brand-black mb-2">⚠️ Data May Be Outdated</h3>
                                 <p class="text-gray-600 mb-2">Last sync: {{ latest_sync|timesince }} ago</p>
                                 <p class="text-gray-600 mb-6">Sync transactions to check for new issues.</p>
-                                <a href="{% url 'refresh_sync_integration' integrations.0.prefix_id %}" 
+                                <a href="{% url 'connections:refresh_sync_integration' integrations.0.prefix_id %}" 
                                    data-turbo="false" 
                                    class="btn-primary">
                                     <i class="fas fa-sync-alt mr-2"></i>
@@ -382,7 +393,7 @@
                                     </a>
                                     {% endif %}
                                     {% if has_integrations %}
-                                    <a href="{% url 'refresh_sync_integration' integrations.0.prefix_id %}" 
+                                    <a href="{% url 'connections:refresh_sync_integration' integrations.0.prefix_id %}" 
                                        data-turbo="false" 
                                        class="btn-primary">
                                         <i class="fas fa-sync-alt mr-2"></i>

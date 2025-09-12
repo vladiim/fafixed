@@ -2,8 +2,10 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
+from django.db import transaction as db_transaction
 from turbo_helper import turbo_stream
 from integrations.models import TransactionData, TransactionValidationStatus, Issue
+from connections.models import Connection
 from django.utils import timezone
 import logging
 import threading
@@ -280,14 +282,34 @@ def issue_detail(request, issue_prefix_id):
             integration__account=current_account
         )
         
-        # Parse the affected transactions from issue data
+        # Parse the affected transactions from issue
         affected_transactions = []
-        if issue.data and 'affected_transactions' in issue.data:
-            transaction_ids = issue.data['affected_transactions']
-            affected_transactions = TransactionData.objects.filter(
-                id__in=transaction_ids,
-                integration__account=current_account  # Additional security check
-            ).order_by('date', 'amount')
+        if issue.affected_transactions:
+            transaction_ids = []
+            
+            # Handle different data structures
+            if isinstance(issue.affected_transactions, list):
+                # Handle list of complex structures or simple IDs
+                for item in issue.affected_transactions:
+                    if isinstance(item, dict) and 'transactions' in item:
+                        # Extract IDs from complex nested structure
+                        transaction_ids.extend([tx['id'] for tx in item['transactions']])
+                    elif isinstance(item, (int, str)):
+                        # Handle simple ID
+                        transaction_ids.append(item)
+            elif isinstance(issue.affected_transactions, dict) and 'transactions' in issue.affected_transactions:
+                # Handle single dict with transactions
+                transaction_ids = [tx['id'] for tx in issue.affected_transactions['transactions']]
+            else:
+                # Handle simple list of IDs (fallback)
+                if isinstance(issue.affected_transactions, (list, tuple)):
+                    transaction_ids = list(issue.affected_transactions)
+            
+            if transaction_ids:
+                affected_transactions = TransactionData.objects.filter(
+                    id__in=transaction_ids,
+                    integration__account=current_account  # Additional security check
+                ).order_by('date', 'amount')
         
         context = {
             'issue': issue,
@@ -341,3 +363,243 @@ def issue_list(request):
         logger.error(f"Error loading issue list: {str(e)}", exc_info=True)
         messages.error(request, "Failed to load issues")
         return redirect('dashboard')
+
+
+
+
+@login_required
+def agent_checks(request):
+    """
+    Display Agent Checks - validation rules interface showing all available 
+    validation rules and their status, with same issue format as dashboard.
+    """
+    logger = logging.getLogger(__name__)
+    
+    # Get user's current account
+    current_account = None
+    if hasattr(request.user, 'profile') and request.user.profile.current_account:
+        current_account = request.user.profile.current_account
+    
+    if not current_account:
+        messages.error(request, "No account selected")
+        return redirect('dashboard')
+    
+    try:
+        
+        # Get all available validation rules from registry
+        from integrations.validation.registry import ValidationRuleRegistry
+        all_rules = ValidationRuleRegistry.get_all_rules()
+        
+        # Get user's integrations
+        integrations = current_account.integrations.filter(status='active')
+        
+        # Build rules information
+        validation_rules = []
+        for rule_name, rule_class in all_rules.items():
+            # For now, all rules are enabled by default (except Smart Categorisation)
+            is_enabled = rule_name != 'smart_categorisation'
+            
+            rule_info = {
+                'name': rule_name,
+                'display_name': rule_class.description or rule_name.replace('_', ' ').title(),
+                'description': getattr(rule_class, 'description', ''),
+                'is_enabled': is_enabled,
+                'issue_count': 0  # Will be populated below
+            }
+            
+            # Count issues for enabled rules
+            if is_enabled:
+                rule_info['issue_count'] = Issue.objects.filter(
+                    integration__account=current_account,
+                    category=rule_name,
+                    status='open'
+                ).count()
+            
+            validation_rules.append(rule_info)
+        
+        # Add Smart Categorisation as a special case (user-configurable)
+        smart_cat_enabled = False  # TODO: Check user configuration
+        validation_rules.append({
+            'name': 'smart_categorisation',
+            'display_name': 'Smart Categorisation',
+            'description': 'Suggests categorisation for transactions based on user-defined patterns',
+            'is_enabled': smart_cat_enabled,
+            'issue_count': 0,
+            'requires_setup': not smart_cat_enabled
+        })
+        
+        # Get all issues for enabled rules (same format as dashboard)
+        if integrations.exists():
+            issues = Issue.objects.filter(
+                integration__account=current_account,
+                status='open',
+                integration__in=integrations
+            ).select_related('integration').order_by('-first_seen')
+        else:
+            issues = []
+        
+        # Calculate summary stats
+        total_issues = len(issues)
+        critical_issues = sum(1 for issue in issues if issue.severity == 'critical')
+        high_issues = sum(1 for issue in issues if issue.severity == 'high')
+        
+        context = {
+            'validation_rules': validation_rules,
+            'issues': issues,
+            'total_issues': total_issues,
+            'critical_issues': critical_issues,
+            'high_issues': high_issues,
+            'integrations': integrations,
+            'has_integrations': integrations.exists()
+        }
+        
+        return render(request, 'data_quality/agent_checks.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error loading Agent Checks: {str(e)}", exc_info=True)
+        messages.error(request, "Failed to load Agent Checks")
+        return redirect('dashboard')
+
+
+@login_required 
+def configure_smart_categorisation(request):
+    """Display Smart Categorisation configuration interface"""
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Get user's current account
+        current_account = None
+        if hasattr(request.user, 'profile') and request.user.profile.current_account:
+            current_account = request.user.profile.current_account
+        
+        if not current_account:
+            messages.error(request, "No account selected")
+            return redirect('dashboard')
+        
+        # Import the CategoryDetectionRule model
+        from data_quality.models import CategoryDetectionRule
+        from connections.models import Connection
+        
+        # Get active connections for this account
+        connections = Connection.objects.filter(
+            account=current_account,
+            status='active'
+        )
+        
+        # Get all category detection rules for this account's connections
+        rules = CategoryDetectionRule.objects.filter(
+            connection__account=current_account
+        ).select_related('connection', 'suggested_category').order_by('-created_at')
+        
+        # Calculate statistics
+        active_rules_count = rules.filter(is_active=True).count()
+        total_applied = sum(rule.applied_count for rule in rules)
+        total_ignored = sum(rule.ignored_count for rule in rules)
+        total_suggestions = total_applied + total_ignored
+        success_rate = round((total_applied / total_suggestions * 100) if total_suggestions > 0 else 0)
+        
+        context = {
+            'rules': rules,
+            'connections': connections,
+            'active_rules_count': active_rules_count,
+            'total_applied': total_applied,
+            'success_rate': success_rate,
+            'current_account': current_account,
+        }
+        
+        logger.info(f"Smart Categorisation configuration accessed by {request.user.email} for account {current_account.id}")
+        return render(request, 'data_quality/smart_categorisation_config.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error loading Smart Categorisation configuration: {str(e)}", exc_info=True)
+        messages.error(request, "Failed to load Smart Categorisation configuration")
+        return redirect('data_quality:agent_checks')
+
+
+@login_required
+def create_categorisation_rule(request):
+    """Create a new categorisation rule"""
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Get user's current account
+        current_account = None
+        if hasattr(request.user, 'profile') and request.user.profile.current_account:
+            current_account = request.user.profile.current_account
+        
+        if not current_account:
+            messages.error(request, "No account selected")
+            return redirect('data_quality:agent_checks')
+        
+        # Get all active connections for the account
+        connections = Connection.objects.filter(account=current_account, status='active')
+        if not connections.exists():
+            messages.error(request, "No active Xero connections found")
+            return redirect('data_quality:agent_checks')
+        
+        if request.method == 'POST':
+            from .forms import CategoryDetectionRuleForm
+            form = CategoryDetectionRuleForm(request.POST, account=current_account)
+            
+            if form.is_valid():
+                rule = form.save()
+                
+                messages.success(
+                    request, 
+                    f"Categorisation rule '{rule.name}' created successfully for {rule.connection.organization_name}!"
+                )
+                logger.info(f"Rule '{rule.name}' created by {request.user.email} for connection {rule.connection.id}")
+                return redirect('data_quality:configure_smart_categorisation')
+            else:
+                messages.error(request, "Please correct the errors below")
+        else:
+            from .forms import CategoryDetectionRuleForm
+            form = CategoryDetectionRuleForm(account=current_account)
+        
+        # Get existing rules for sidebar display
+        from data_quality.models import CategoryDetectionRule, ConditionOperator
+        import json
+        
+        rules = CategoryDetectionRule.objects.filter(
+            connection__account=current_account
+        ).select_related('connection').order_by('-priority', 'name')
+        
+        # Prepare condition data for JavaScript
+        operators = [{'value': choice[0], 'label': choice[1]} for choice in ConditionOperator.choices]
+        fields = [
+            {'value': 'description', 'label': 'Description'},
+            {'value': 'amount', 'label': 'Amount'},
+            {'value': 'reference', 'label': 'Reference'},
+            {'value': 'contact_name', 'label': 'Contact Name'},
+            {'value': 'date', 'label': 'Date'},
+        ]
+        
+        context = {
+            'form': form,
+            'connection': connection,
+            'current_account': current_account,
+            'rules': rules,
+            'operators_json': json.dumps(operators),
+            'fields_json': json.dumps(fields),
+        }
+        
+        return render(request, 'data_quality/create_categorisation_rule.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error creating categorisation rule: {str(e)}", exc_info=True)
+        messages.error(request, "Failed to create categorisation rule")
+        return redirect('data_quality:configure_smart_categorisation')
+
+
+@login_required
+def edit_categorisation_rule(request, rule_id):
+    """Edit an existing categorisation rule"""
+    messages.info(request, f"Rule editing coming soon! (Rule {rule_id})")
+    return redirect('data_quality:configure_smart_categorisation')
+
+
+@login_required
+def delete_categorisation_rule(request, rule_id):
+    """Delete a categorisation rule"""
+    messages.info(request, f"Rule deletion coming soon! (Rule {rule_id})")
+    return redirect('data_quality:configure_smart_categorisation')

@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Agent Checks - FaFixed{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 flex">
+    <!-- Sidebar -->
+    <div class="w-80 bg-brand-white border-r border-gray-200 flex flex-col h-screen sticky top-0">
+        <div class="p-8 border-b border-gray-200">
+            <h1 class="text-2xl font-heading font-bold text-brand-black mb-2">Agent Checks</h1>
+            <p class="text-gray-600 text-sm">Manage validation rules and automated data quality checks.</p>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto p-6">
+            <!-- Validation Rules Section -->
+            <div class="mb-8">
+                <h3 class="font-heading font-semibold text-brand-black mb-4">Validation Rules ({{ validation_rules|length }})</h3>
+                <div class="space-y-2">
+                    {% for rule in validation_rules %}
+                    <div class="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors group">
+                        <div class="flex items-center space-x-3 flex-1 min-w-0">
+                            <div class="flex items-center">
+                                {% if rule.requires_setup %}
+                                    <!-- Unchecked - requires setup -->
+                                    <input type="checkbox" class="h-4 w-4 text-brand-green border-gray-300 rounded" disabled>
+                                {% elif rule.is_enabled %}
+                                    <!-- Checked - enabled -->
+                                    <input type="checkbox" class="h-4 w-4 text-brand-green border-gray-300 rounded" checked disabled>
+                                {% else %}
+                                    <!-- Unchecked - disabled -->
+                                    <input type="checkbox" class="h-4 w-4 text-brand-green border-gray-300 rounded" disabled>
+                                {% endif %}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm font-medium {% if rule.is_enabled %}text-brand-black{% else %}text-gray-700{% endif %}">
+                                        {{ rule.display_name }}
+                                    </span>
+                                    {% if rule.is_enabled and rule.issue_count > 0 %}
+                                        <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                                            {{ rule.issue_count }}
+                                        </span>
+                                    {% elif rule.requires_setup %}
+                                        <span class="ml-2 text-xs text-gray-400">Setup Required</span>
+                                    {% endif %}
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">{{ rule.description|truncatechars:60 }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-4 text-gray-500">
+                        <p class="text-sm">No validation rules available</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 overflow-auto p-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <h2 class="text-3xl font-heading font-bold text-brand-black mb-2">Validation Rules</h2>
+            <p class="text-gray-600">Configure and monitor automated data quality checks</p>
+        </div>
+
+        <!-- Validation Rules List -->
+        <div class="bg-brand-white rounded-lg shadow-sm border border-gray-200">
+            <!-- Header -->
+            <div class="px-6 py-4 border-b border-gray-200">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-heading font-semibold text-brand-black">Available Rules</h3>
+                    <div class="flex items-center space-x-4 text-sm text-gray-500">
+                        <span>{{ validation_rules|length }} rules</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rules List -->
+            <div class="divide-y divide-gray-200">
+                {% for rule in validation_rules %}
+                <div class="px-6 py-4 hover:bg-gray-50 transition-colors {% if rule.name == 'smart_categorisation' %}cursor-pointer{% endif %}">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-4">
+                            <!-- Status Indicator -->
+                            <div class="flex items-center">
+                                {% if rule.requires_setup %}
+                                    <div class="h-3 w-3 rounded-full bg-gray-300"></div>
+                                {% elif rule.is_enabled %}
+                                    <div class="h-3 w-3 rounded-full bg-green-400"></div>
+                                {% else %}
+                                    <div class="h-3 w-3 rounded-full bg-gray-300"></div>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Rule Info -->
+                            <div>
+                                <h4 class="text-sm font-medium text-brand-black">{{ rule.display_name }}</h4>
+                                <p class="text-sm text-gray-500">{{ rule.description }}</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Status and Actions -->
+                        <div class="flex items-center space-x-4">
+                            {% if rule.is_enabled and rule.issue_count > 0 %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                    {{ rule.issue_count }} issue{{ rule.issue_count|pluralize }}
+                                </span>
+                            {% endif %}
+                            
+                            {% if rule.requires_setup %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                    Setup Required
+                                </span>
+                                {% if rule.name == 'smart_categorisation' %}
+                                    <a href="{% url 'data_quality:configure_smart_categorisation' %}" class="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-black">
+                                        Configure
+                                    </a>
+                                {% endif %}
+                            {% elif rule.is_enabled %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    Active
+                                </span>
+                            {% else %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                    Inactive
+                                </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="px-6 py-8 text-center">
+                    <div class="text-gray-400 mb-4">
+                        <i class="fas fa-shield-alt text-4xl"></i>
+                    </div>
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">No Validation Rules</h3>
+                    <p class="text-gray-600">No validation rules are currently available.</p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

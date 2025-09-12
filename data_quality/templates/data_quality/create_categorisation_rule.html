@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+
+{% block title %}Create Categorisation Rule - FaFixed{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50 flex">
+    <!-- Sidebar -->
+    <div class="w-80 bg-brand-white border-r border-gray-200 flex flex-col h-screen sticky top-0">
+        <div class="p-8 border-b border-gray-200">
+            <div class="flex items-center space-x-4 mb-4">
+                <a href="{% url 'data_quality:configure_smart_categorisation' %}" class="inline-flex items-center text-gray-500 hover:text-brand-black">
+                    <i class="fas fa-arrow-left mr-2"></i>
+                    Back
+                </a>
+            </div>
+            <h1 class="text-2xl font-heading font-bold text-brand-black mb-2">Create Rule</h1>
+            <p class="text-gray-600 text-sm">Define conditions to automatically suggest transaction categories.</p>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto p-6">
+            <!-- Rules Section -->
+            <div class="mb-8">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-heading font-semibold text-brand-black">Rules ({{ rules|length }})</h3>
+                    <a href="{% url 'data_quality:create_categorisation_rule' %}" class="inline-flex items-center px-2 py-1 text-xs font-medium text-brand-black border border-gray-300 rounded hover:bg-gray-50">
+                        <i class="fas fa-plus mr-1"></i>
+                        Add
+                    </a>
+                </div>
+                <div class="space-y-2">
+                    {% for rule in rules %}
+                    <div class="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 transition-colors group">
+                        <div class="flex items-center space-x-3 flex-1 min-w-0">
+                            <div class="flex items-center">
+                                {% if rule.is_active %}
+                                    <input type="checkbox" class="h-4 w-4 text-brand-green border-gray-300 rounded" checked disabled>
+                                {% else %}
+                                    <input type="checkbox" class="h-4 w-4 text-brand-green border-gray-300 rounded" disabled>
+                                {% endif %}
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-sm font-medium {% if rule.is_active %}text-brand-black{% else %}text-gray-700{% endif %}">
+                                        {{ rule.name }}
+                                    </span>
+                                    {% if rule.applied_count > 0 %}
+                                        <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                            {{ rule.applied_count }}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                                <div class="text-xs text-gray-500 mt-1">
+                                    <span class="font-medium">{{ rule.connection.organization_name }}</span>
+                                    {% if rule.description %}
+                                        • {{ rule.description|truncatechars:40 }}
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-4 text-gray-500">
+                        <p class="text-sm">No rules created yet</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex-1 overflow-auto p-8">
+        <!-- Header -->
+        <div class="mb-8">
+            <h2 class="text-3xl font-heading font-bold text-brand-black mb-2">Create Categorisation Rule</h2>
+            <p class="text-gray-600">Configure how transactions should be automatically categorised</p>
+        </div>
+
+        <!-- Create Rule Form -->
+        <div class="bg-brand-white rounded-lg shadow-sm border border-gray-200">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="font-heading font-semibold text-brand-black">Rule Details</h3>
+                <div class="text-sm text-gray-600 mt-1">Fill out the form below to create a new categorisation rule</div>
+            </div>
+            
+            <div class="p-6">
+                <form method="post" data-turbo="true">
+                    {% csrf_token %}
+                    
+                    <!-- Basic Rule Information -->
+                    <div class="space-y-6">
+                        <!-- Xero Organization Selection -->
+                        <div class="space-y-2">
+                            <label for="{{ form.connection.id_for_label }}" class="block text-sm font-medium text-gray-900">
+                                Xero Organization <span class="text-red-500">*</span>
+                            </label>
+                            {{ form.connection }}
+                            {% if form.connection.help_text %}
+                                <div class="text-sm text-gray-600">{{ form.connection.help_text }}</div>
+                            {% endif %}
+                            {% for error in form.connection.errors %}
+                                <div class="text-red-600 text-sm">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="grid md:grid-cols-2 gap-6">
+                            <!-- Rule Name -->
+                            <div class="space-y-2">
+                                <label for="{{ form.name.id_for_label }}" class="block text-sm font-medium text-gray-900">
+                                    Rule Name <span class="text-red-500">*</span>
+                                </label>
+                                {{ form.name }}
+                                {% if form.name.help_text %}
+                                    <div class="text-sm text-gray-600">{{ form.name.help_text }}</div>
+                                {% endif %}
+                                {% for error in form.name.errors %}
+                                    <div class="text-red-600 text-sm">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+
+                            <!-- Priority -->
+                            <div class="space-y-2">
+                                <label for="{{ form.priority.id_for_label }}" class="block text-sm font-medium text-gray-900">
+                                    Priority
+                                </label>
+                                {{ form.priority }}
+                                {% if form.priority.help_text %}
+                                    <div class="text-sm text-gray-600">{{ form.priority.help_text }}</div>
+                                {% endif %}
+                                {% for error in form.priority.errors %}
+                                    <div class="text-red-600 text-sm">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Description -->
+                        <div class="space-y-2">
+                            <label for="{{ form.description.id_for_label }}" class="block text-sm font-medium text-gray-900">
+                                Description
+                            </label>
+                            {{ form.description }}
+                            {% if form.description.help_text %}
+                                <div class="text-sm text-gray-600">{{ form.description.help_text }}</div>
+                            {% endif %}
+                            {% for error in form.description.errors %}
+                                <div class="text-red-600 text-sm">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- Target Category and Logic -->
+                        <div class="grid md:grid-cols-2 gap-6">
+                            <!-- Suggested Category -->
+                            <div class="space-y-2">
+                                <label for="{{ form.suggested_category.id_for_label }}" class="block text-sm font-medium text-gray-900">
+                                    Suggested Category <span class="text-red-500">*</span>
+                                </label>
+                                {{ form.suggested_category }}
+                                {% if form.suggested_category.help_text %}
+                                    <div class="text-sm text-gray-600">{{ form.suggested_category.help_text }}</div>
+                                {% endif %}
+                                {% for error in form.suggested_category.errors %}
+                                    <div class="text-red-600 text-sm">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+
+                            <!-- Condition Logic -->
+                            <div class="space-y-2">
+                                <label for="{{ form.condition_logic.id_for_label }}" class="block text-sm font-medium text-gray-900">
+                                    Condition Logic
+                                </label>
+                                {{ form.condition_logic }}
+                                {% if form.condition_logic.help_text %}
+                                    <div class="text-sm text-gray-600">{{ form.condition_logic.help_text }}</div>
+                                {% endif %}
+                                {% for error in form.condition_logic.errors %}
+                                    <div class="text-red-600 text-sm">{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- Rule Status -->
+                        <div class="flex items-center space-x-3">
+                            <div class="flex items-center">
+                                {{ form.is_active }}
+                            </div>
+                            <label for="{{ form.is_active.id_for_label }}" class="text-sm font-medium text-gray-900">
+                                Active (rule will be applied to new transactions)
+                            </label>
+                            {% for error in form.is_active.errors %}
+                                <div class="text-red-600 text-sm">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Conditions Section -->
+                    <div class="mt-8 pt-6 border-t border-gray-200" 
+                         data-controller="rule-conditions"
+                         data-rule-conditions-operators-value="{{ operators_json }}"
+                         data-rule-conditions-fields-value="{{ fields_json }}">
+                        <h4 class="text-lg font-heading font-semibold text-brand-black mb-4">Rule Conditions</h4>
+                        <p class="text-sm text-gray-600 mb-6">Define the conditions that transactions must meet to be suggested for this category.</p>
+                        
+                        <!-- Hidden input to store conditions JSON -->
+                        <input type="hidden" name="conditions" data-rule-conditions-target="conditionsInput" value="">
+                        
+                        <!-- Conditions container - dynamically managed with JavaScript -->
+                        <div data-rule-conditions-target="container" class="space-y-4">
+                            <div class="bg-gray-50 rounded-lg p-4">
+                                <div class="text-center text-gray-500 py-8">
+                                    <i class="fas fa-plus-circle text-2xl mb-2"></i>
+                                    <p class="text-sm">Click "Add Condition" to create your first condition</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="button" 
+                                data-action="click->rule-conditions#addCondition"
+                                class="mt-4 inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            <i class="fas fa-plus mr-2"></i>
+                            Add Condition
+                        </button>
+                    </div>
+
+                    <!-- Form Actions -->
+                    <div class="flex items-center justify-between pt-6 mt-6 border-t border-gray-200">
+                        <a href="{% url 'data_quality:configure_smart_categorisation' %}" 
+                           class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            <i class="fas fa-arrow-left mr-2"></i> Back to Rules
+                        </a>
+                        
+                        <button type="submit" class="inline-flex items-center px-6 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-brand-black hover:bg-gray-800">
+                            <i class="fas fa-check mr-2"></i> Create Rule
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

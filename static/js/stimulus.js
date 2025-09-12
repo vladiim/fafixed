@@ -26,6 +26,8 @@ import ValidationRunnerController from "./controllers/validation_runner_controll
 import RefreshStatusController from "./controllers/refresh_status_controller.js"
 import ActionCableController from "./controllers/actioncable_controller.js"
 import BulkActionController from "./controllers/bulk_action_controller.js"
+import SuggestionActionController from "./controllers/suggestion_action_controller.js"
+import RuleConditionsController from "./controllers/rule_conditions_controller.js"
 
 const application = Application.start()
 
@@ -37,6 +39,8 @@ application.register("validation-runner", ValidationRunnerController)
 application.register("refresh-status", RefreshStatusController)
 application.register("actioncable", ActionCableController)
 application.register("bulk-action", BulkActionController)
+application.register("suggestion-action", SuggestionActionController)
+application.register("rule-conditions", RuleConditionsController)
 
 // Configure Stimulus development experience  
 application.debug = false  // Disable debug to reduce console noise

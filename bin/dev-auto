@@ -28,19 +28,9 @@ collect_static() {
     INOTIFY_PID=$!
 }
 
-# Function to watch template files and trigger Django reload via dummy Python file touch
-watch_templates() {
-    while inotifywait -r -e modify,create,delete ./templates/ ./**/templates/ 2>/dev/null; do
-        # Touch a Python file to trigger daphne reload
-        touch ./fafixed/__init__.py
-    done &
-    TEMPLATE_WATCHER_PID=$!
-}
-
-# Start file watchers if inotifywait is available, otherwise skip
+# Start file watcher if inotifywait is available, otherwise skip
 if command -v inotifywait > /dev/null; then
     collect_static
-    watch_templates
 fi
 
 # Function to kill background processes
@@ -48,7 +38,6 @@ cleanup() {
     echo "Stopping development server..."
     kill $TAILWIND_PID 2>/dev/null
     kill $INOTIFY_PID 2>/dev/null
-    kill $TEMPLATE_WATCHER_PID 2>/dev/null
     kill $CELERY_PID 2>/dev/null
     if [ "$REDIS_STARTED" = true ]; then
         echo "Stopping Redis server..."
@@ -60,8 +49,7 @@ cleanup() {
 # Set trap to cleanup on script exit
 trap cleanup INT TERM
 
-# Start Django development server with auto-reload (better for development)
-# For production or when WebSockets are needed, use: ./bin/dev-production 
+# Start Django development server with auto-reload
 echo "Starting Django development server with auto-reload..."
 uv run python manage.py runserver 0.0.0.0:8000
 
