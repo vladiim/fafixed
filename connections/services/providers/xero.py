@@ -47,6 +47,48 @@ def convert_decimals_for_json(data):
         return data
 
 
+def extract_tracking_categories_from_line_item(line_item_dict):
+    """
+    Extract tracking category data from Xero line item dictionary.
+
+    Args:
+        line_item_dict: Raw line item data from Xero API
+
+    Returns:
+        dict: Tracking category information with keys:
+            - tracking_category_1_id, tracking_category_1_name, tracking_category_1_option
+            - tracking_category_2_id, tracking_category_2_name, tracking_category_2_option
+    """
+    tracking_data = {
+        'tracking_category_1_id': '',
+        'tracking_category_1_name': '',
+        'tracking_category_1_option': '',
+        'tracking_category_2_id': '',
+        'tracking_category_2_name': '',
+        'tracking_category_2_option': '',
+    }
+
+    try:
+        # Xero API returns tracking categories in a 'tracking_categories' list
+        tracking_categories = line_item_dict.get('tracking_categories', [])
+
+        # Process up to 2 tracking categories (Xero's limit)
+        for i, category in enumerate(tracking_categories[:2]):
+            if isinstance(category, dict):
+                index = i + 1
+                tracking_data[f'tracking_category_{index}_id'] = category.get('tracking_category_id', '') or ''
+                tracking_data[f'tracking_category_{index}_name'] = category.get('name', '') or ''
+                tracking_data[f'tracking_category_{index}_option'] = category.get('option', '') or ''
+
+        logger.debug(f"Extracted tracking data: {tracking_data}")
+
+    except Exception as e:
+        logger.warning(f"Error extracting tracking categories from line item: {e}")
+        # Return empty tracking data on error
+
+    return tracking_data
+
+
 class XeroConnectionService(BaseConnectionService):
     """Xero-specific integration service"""
     
@@ -913,6 +955,12 @@ class XeroConnectionService(BaseConnectionService):
                                     transaction.line_items.all().delete()
                                 
                                 for xero_line in xero_transaction.line_items:
+                                    # Convert line item to dict for processing
+                                    line_item_dict = xero_line.to_dict() if hasattr(xero_line, 'to_dict') else {}
+
+                                    # Extract tracking category data
+                                    tracking_data = extract_tracking_categories_from_line_item(line_item_dict)
+
                                     TransactionLineItem.objects.create(
                                         transaction=transaction,
                                         description=getattr(xero_line, 'description', '') or '',
@@ -922,7 +970,15 @@ class XeroConnectionService(BaseConnectionService):
                                         tax_type=getattr(xero_line, 'tax_type', '') or '',
                                         tax_amount=float(getattr(xero_line, 'tax_amount', 0) or 0),
                                         account_code=getattr(xero_line, 'account_code', '') or '',
-                                        raw_data=xero_line.to_dict() if hasattr(xero_line, 'to_dict') else {}
+                                        account_name=getattr(xero_line, 'account_name', '') or '',
+                                        # Add tracking category fields
+                                        tracking_category_1_id=tracking_data['tracking_category_1_id'],
+                                        tracking_category_1_name=tracking_data['tracking_category_1_name'],
+                                        tracking_category_1_option=tracking_data['tracking_category_1_option'],
+                                        tracking_category_2_id=tracking_data['tracking_category_2_id'],
+                                        tracking_category_2_name=tracking_data['tracking_category_2_name'],
+                                        tracking_category_2_option=tracking_data['tracking_category_2_option'],
+                                        raw_data=line_item_dict
                                     )
                             except Exception as line_error:
                                 logger.warning(f"Error processing line items for transaction {xero_transaction.bank_transaction_id}: {line_error}")

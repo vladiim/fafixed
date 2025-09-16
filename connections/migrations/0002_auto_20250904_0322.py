@@ -39,7 +39,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('connections', '0001_initial'),
-        ('integrations', '__latest__'),  # Ensure integrations migrations are applied
+        ('integrations', '0012_remove_category_choices'),  # Fixed dependency to specific migration
     ]
 
     operations = [

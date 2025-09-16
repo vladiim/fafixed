@@ -728,7 +728,15 @@ class TransactionLineItem(models.Model):
     # Account classification
     account_code = models.CharField(max_length=20, blank=True, null=True)
     account_name = models.CharField(max_length=200, blank=True, null=True)
-    
+
+    # Tracking categories (Xero supports max 2 tracking categories per line item)
+    tracking_category_1_id = models.CharField(max_length=255, blank=True, null=True)
+    tracking_category_1_name = models.CharField(max_length=200, blank=True, null=True)
+    tracking_category_1_option = models.CharField(max_length=200, blank=True, null=True)
+    tracking_category_2_id = models.CharField(max_length=255, blank=True, null=True)
+    tracking_category_2_name = models.CharField(max_length=200, blank=True, null=True)
+    tracking_category_2_option = models.CharField(max_length=200, blank=True, null=True)
+
     # External references
     external_line_item_id = models.CharField(max_length=255, blank=True, null=True)
     

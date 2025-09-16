@@ -5,6 +5,8 @@ import logging
 from typing import Dict, Any, List
 
 from data_quality.models import XeroTrackingCategory, XeroTrackingOption
+from connections.services.providers.xero import XeroConnectionService
+from xero_python.accounting import AccountingApi
 
 logger = logging.getLogger(__name__)
 
@@ -33,9 +35,9 @@ class XeroTrackingSyncService:
             
             # Get Xero API client
             api_client = self._get_xero_api_client()
-            
+
             # Fetch tracking categories from Xero
-            response = api_client.get_tracking_categories()
+            response = api_client.get_tracking_categories(xero_tenant_id=self.connection.tenant_id)
             
             # Process the response
             stats = {
@@ -204,10 +206,23 @@ class XeroTrackingSyncService:
     def _get_xero_api_client(self):
         """
         Get initialized Xero API client for this connection.
-        
+
         Returns:
-            Xero API client instance
+            AccountingApi: Initialized Xero Accounting API client
         """
-        # This will be implemented when we add the actual Xero API integration
-        # For now, this is a placeholder that tests can mock
-        raise NotImplementedError("Xero API client integration not yet implemented")
+        try:
+            # Get the Xero connection service for this connection
+            xero_service = XeroConnectionService(self.connection)
+
+            # Create API client with proper token management
+            api_client = xero_service._create_api_client()
+
+            # Return AccountingApi instance
+            accounting_api = AccountingApi(api_client)
+
+            logger.debug(f"Created Xero API client for connection {self.connection.id}")
+            return accounting_api
+
+        except Exception as e:
+            logger.error(f"Failed to create Xero API client for connection {self.connection.id}: {e}")
+            raise

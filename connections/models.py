@@ -63,6 +63,11 @@ class Connection(models.Model, PrefixIdMixin):
         unique_together = ['account', 'provider', 'external_account_id']
         ordering = ['-created_at']
     
+    @property
+    def tenant_id(self):
+        """Xero tenant ID (stored as external_account_id)"""
+        return self.external_account_id
+
     def __str__(self):
         return f"{self.account.name} - {self.provider.display_name} - {self.organization_name}"
 

@@ -85,7 +85,7 @@ class XeroTrackingSyncServiceTest(TestCase):
         result = self.sync_service.sync_tracking_categories()
         
         # Verify API was called correctly
-        mock_api_client.get_tracking_categories.assert_called_once()
+        mock_api_client.get_tracking_categories.assert_called_once_with(xero_tenant_id=self.connection.tenant_id)
         
         # Verify result
         self.assertTrue(result['success'])

@@ -576,7 +576,7 @@ def create_categorisation_rule(request):
         
         context = {
             'form': form,
-            'connection': connection,
+            'connections': connections,
             'current_account': current_account,
             'rules': rules,
             'operators_json': json.dumps(operators),
