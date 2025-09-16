@@ -603,3 +603,59 @@ def delete_categorisation_rule(request, rule_id):
     """Delete a categorisation rule"""
     messages.info(request, f"Rule deletion coming soon! (Rule {rule_id})")
     return redirect('data_quality:configure_smart_categorisation')
+
+
+@login_required
+def get_tracking_categories_for_connection(request, connection_id):
+    """AJAX endpoint to get tracking categories for a specific connection"""
+    logger = logging.getLogger(__name__)
+
+    if request.method != 'GET':
+        return JsonResponse({'error': 'GET method required'}, status=405)
+
+    try:
+        # Get user's current account
+        current_account = None
+        if hasattr(request.user, 'profile') and request.user.profile.current_account:
+            current_account = request.user.profile.current_account
+
+        if not current_account:
+            return JsonResponse({'error': 'No account selected'}, status=400)
+
+        # Verify connection belongs to user's account
+        from connections.models import Connection
+        try:
+            connection = Connection.objects.get(
+                id=connection_id,
+                account=current_account,
+                status='active'
+            )
+        except Connection.DoesNotExist:
+            return JsonResponse({'error': 'Connection not found or access denied'}, status=404)
+
+        # Get tracking categories for this connection
+        from data_quality.models import XeroTrackingCategory
+        categories = XeroTrackingCategory.objects.filter(
+            connection=connection,
+            is_active=True
+        ).order_by('name')
+
+        # Convert to JSON format for dropdown
+        categories_data = [
+            {
+                'id': category.id,
+                'name': category.name,
+                'display_name': f"{category.name} - {category.category_type}"
+            }
+            for category in categories
+        ]
+
+        return JsonResponse({
+            'success': True,
+            'categories': categories_data,
+            'connection_name': connection.organization_name
+        })
+
+    except Exception as e:
+        logger.error(f"Error loading tracking categories for connection {connection_id}: {str(e)}", exc_info=True)
+        return JsonResponse({'error': 'Failed to load tracking categories'}, status=500)
