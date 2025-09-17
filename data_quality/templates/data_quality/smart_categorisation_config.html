@@ -67,8 +67,24 @@
     <div class="flex-1 overflow-auto p-8">
         <!-- Header -->
         <div class="mb-8">
-            <h2 class="text-3xl font-heading font-bold text-brand-black mb-2">Smart Categorisation</h2>
-            <p class="text-gray-600">Manage automatic transaction categorisation rules</p>
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-3xl font-heading font-bold text-brand-black mb-2">Smart Categorisation</h2>
+                    <p class="text-gray-600">Manage automatic transaction categorisation rules</p>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <a href="{% url 'data_quality:suggestion_review_dashboard' %}"
+                       class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                        <i class="fas fa-list-check mr-2"></i>
+                        Review Suggestions
+                    </a>
+                    <a href="{% url 'data_quality:create_categorisation_rule' %}"
+                       class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-brand-black hover:bg-gray-800">
+                        <i class="fas fa-plus mr-2"></i>
+                        Create Rule
+                    </a>
+                </div>
+            </div>
         </div>
 
         <!-- Categorisation Rules List -->

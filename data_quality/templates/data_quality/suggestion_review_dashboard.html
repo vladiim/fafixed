@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}Suggestion Review - FaFixed{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50">
+    <!-- Header -->
+    <div class="bg-white border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between py-6">
+                <div class="flex items-center space-x-4">
+                    <a href="{% url 'data_quality:configure_smart_categorisation' %}"
+                       class="inline-flex items-center text-gray-500 hover:text-brand-black">
+                        <i class="fas fa-arrow-left mr-2"></i>
+                        Back to Rules
+                    </a>
+                    <div class="h-6 border-l border-gray-300"></div>
+                    <h1 class="text-2xl font-heading font-bold text-brand-black">Suggestion Review</h1>
+                </div>
+
+                <div class="flex items-center space-x-4">
+                    {% if total_pending > 0 %}
+                    <div data-controller="bulk-action" class="flex items-center space-x-3">
+                        <button type="button"
+                                data-action="click->bulk-action#selectAll"
+                                class="text-sm text-gray-600 hover:text-brand-black">
+                            Select All
+                        </button>
+                        <button type="button"
+                                data-action="click->bulk-action#ignoreSelected"
+                                data-bulk-action-target="bulkButton"
+                                data-url="{% url 'data_quality:bulk_ignore_suggestions' %}"
+                                class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                                disabled>
+                            <i class="fas fa-times mr-2"></i>
+                            Ignore Selected
+                        </button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Bar -->
+    <div class="bg-white border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-8">
+                    <div class="flex items-center">
+                        <div class="flex items-center justify-center w-8 h-8 bg-yellow-100 rounded-full mr-3">
+                            <i class="fas fa-clock text-yellow-600 text-sm"></i>
+                        </div>
+                        <div>
+                            <div class="text-sm font-medium text-gray-900">{{ total_pending }}</div>
+                            <div class="text-xs text-gray-500">Pending Review</div>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center">
+                        <div class="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full mr-3">
+                            <i class="fas fa-robot text-blue-600 text-sm"></i>
+                        </div>
+                        <div>
+                            <div class="text-sm font-medium text-gray-900">{{ total_rules }}</div>
+                            <div class="text-xs text-gray-500">Active Rules</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-sm text-gray-500">
+                    Account: <span class="font-medium text-gray-900">{{ current_account.name }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% if total_pending > 0 %}
+            <!-- Suggestions List -->
+            <div class="space-y-6" data-controller="bulk-action">
+                {% for suggestion in suggestions %}
+                    {% include 'data_quality/partials/suggestion_card.html' with suggestion=suggestion %}
+                {% endfor %}
+            </div>
+
+            <!-- Load More / Pagination could go here -->
+            {% if suggestions|length >= 20 %}
+            <div class="mt-8 text-center">
+                <button type="button"
+                        class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    Load More Suggestions
+                </button>
+            </div>
+            {% endif %}
+
+        {% else %}
+            <!-- Empty State -->
+            <div class="text-center py-12">
+                <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
+                    <i class="fas fa-check text-green-600 text-xl"></i>
+                </div>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">All caught up!</h3>
+                <p class="text-gray-600 mb-8">No pending categorization suggestions to review.</p>
+
+                <div class="flex items-center justify-center space-x-4">
+                    <a href="{% url 'data_quality:create_categorisation_rule' %}"
+                       class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-brand-black hover:bg-gray-800">
+                        <i class="fas fa-plus mr-2"></i>
+                        Create New Rule
+                    </a>
+                    <a href="{% url 'data_quality:configure_smart_categorisation' %}"
+                       class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                        <i class="fas fa-cog mr-2"></i>
+                        Manage Rules
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Toast notifications area -->
+<div id="toast-container" class="fixed top-4 right-4 z-50" data-controller="message-alert">
+    <!-- Toast messages will be inserted here by JavaScript -->
+</div>
+{% endblock %}

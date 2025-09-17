@@ -606,6 +606,54 @@ def delete_categorisation_rule(request, rule_id):
 
 
 @login_required
+def tracking_categories_dropdown(request, connection_id):
+    """Return category dropdown HTML for Turbo frame"""
+    logger = logging.getLogger(__name__)
+
+    try:
+        # Get user's current account
+        current_account = None
+        if hasattr(request.user, 'profile') and request.user.profile.current_account:
+            current_account = request.user.profile.current_account
+
+        if not current_account:
+            return render(request, 'data_quality/partials/category_dropdown_error.html', {
+                'error': 'No account selected'
+            })
+
+        # Verify connection belongs to user's account
+        from connections.models import Connection
+        try:
+            connection = Connection.objects.get(
+                id=connection_id,
+                account=current_account,
+                status='active'
+            )
+        except Connection.DoesNotExist:
+            return render(request, 'data_quality/partials/category_dropdown_error.html', {
+                'error': 'Connection not found or access denied'
+            })
+
+        # Get tracking categories for this connection
+        from data_quality.models import XeroTrackingCategory
+        categories = XeroTrackingCategory.objects.filter(
+            connection=connection,
+            status='ACTIVE'
+        ).order_by('name')
+
+        return render(request, 'data_quality/partials/category_dropdown.html', {
+            'categories': categories,
+            'connection': connection,
+        })
+
+    except Exception as e:
+        logger.error(f"Error loading tracking categories for connection {connection_id}: {str(e)}", exc_info=True)
+        return render(request, 'data_quality/partials/category_dropdown_error.html', {
+            'error': 'Failed to load tracking categories'
+        })
+
+
+@login_required
 def get_tracking_categories_for_connection(request, connection_id):
     """AJAX endpoint to get tracking categories for a specific connection"""
     logger = logging.getLogger(__name__)
@@ -637,7 +685,7 @@ def get_tracking_categories_for_connection(request, connection_id):
         from data_quality.models import XeroTrackingCategory
         categories = XeroTrackingCategory.objects.filter(
             connection=connection,
-            is_active=True
+            status='ACTIVE'
         ).order_by('name')
 
         # Convert to JSON format for dropdown
@@ -645,7 +693,7 @@ def get_tracking_categories_for_connection(request, connection_id):
             {
                 'id': category.id,
                 'name': category.name,
-                'display_name': f"{category.name} - {category.category_type}"
+                'display_name': category.name
             }
             for category in categories
         ]
@@ -659,3 +707,252 @@ def get_tracking_categories_for_connection(request, connection_id):
     except Exception as e:
         logger.error(f"Error loading tracking categories for connection {connection_id}: {str(e)}", exc_info=True)
         return JsonResponse({'error': 'Failed to load tracking categories'}, status=500)
+
+
+@login_required
+def suggestion_review_dashboard(request):
+    """Display suggestion review dashboard"""
+    logger = logging.getLogger(__name__)
+
+    try:
+        # Get user's current account
+        current_account = None
+        if hasattr(request.user, 'profile') and request.user.profile.current_account:
+            current_account = request.user.profile.current_account
+
+        if not current_account:
+            messages.error(request, "No account selected")
+            return redirect('dashboard')
+
+        # Get pending suggestions for this account
+        from data_quality.models import CategorySuggestion
+        suggestions = CategorySuggestion.objects.filter(
+            connection__account=current_account,
+            status='PENDING'
+        ).select_related(
+            'detection_rule',
+            'suggested_category',
+            'connection'
+        ).order_by('-created_at')
+
+        # Get statistics
+        total_pending = suggestions.count()
+        total_rules = CategoryDetectionRule.objects.filter(
+            connection__account=current_account,
+            is_active=True
+        ).count()
+
+        context = {
+            'suggestions': suggestions,
+            'total_pending': total_pending,
+            'total_rules': total_rules,
+            'current_account': current_account,
+        }
+
+        return render(request, 'data_quality/suggestion_review_dashboard.html', context)
+
+    except Exception as e:
+        logger.error(f"Error loading suggestion review dashboard: {str(e)}", exc_info=True)
+        messages.error(request, "Failed to load suggestion review dashboard")
+        return redirect('data_quality:configure_smart_categorisation')
+
+
+@login_required
+def ignore_suggestion(request, suggestion_id):
+    """Handle ignore action for a suggestion"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST method required'}, status=405)
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        # Get user's current account
+        current_account = None
+        if hasattr(request.user, 'profile') and request.user.profile.current_account:
+            current_account = request.user.profile.current_account
+
+        if not current_account:
+            return JsonResponse({'error': 'No account selected'}, status=400)
+
+        # Get suggestion
+        from data_quality.models import CategorySuggestion
+        suggestion = get_object_or_404(
+            CategorySuggestion,
+            id=suggestion_id,
+            connection__account=current_account,
+            status='PENDING'
+        )
+
+        # Use suggestion handler
+        from data_quality.services.category_suggestion_handler import CategorySuggestionHandler
+        handler = CategorySuggestionHandler()
+        result = handler.handle_ignore_action(suggestion, request.user)
+
+        if result['success']:
+            return JsonResponse({
+                'success': True,
+                'message': 'Suggestion ignored successfully'
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': result['error']
+            }, status=400)
+
+    except Exception as e:
+        logger.error(f"Error ignoring suggestion {suggestion_id}: {str(e)}", exc_info=True)
+        return JsonResponse({'error': 'Failed to ignore suggestion'}, status=500)
+
+
+@login_required
+def mark_done_suggestion(request, suggestion_id):
+    """Handle mark done action for a suggestion"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST method required'}, status=405)
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        # Get user's current account
+        current_account = None
+        if hasattr(request.user, 'profile') and request.user.profile.current_account:
+            current_account = request.user.profile.current_account
+
+        if not current_account:
+            return JsonResponse({'error': 'No account selected'}, status=400)
+
+        # Get suggestion
+        from data_quality.models import CategorySuggestion
+        suggestion = get_object_or_404(
+            CategorySuggestion,
+            id=suggestion_id,
+            connection__account=current_account,
+            status='PENDING'
+        )
+
+        # Use suggestion handler
+        from data_quality.services.category_suggestion_handler import CategorySuggestionHandler
+        handler = CategorySuggestionHandler()
+        result = handler.handle_mark_done_action(suggestion, request.user)
+
+        if result['success']:
+            return JsonResponse({
+                'success': True,
+                'message': 'Suggestion marked as done successfully'
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': result['error']
+            }, status=400)
+
+    except Exception as e:
+        logger.error(f"Error marking suggestion {suggestion_id} as done: {str(e)}", exc_info=True)
+        return JsonResponse({'error': 'Failed to mark suggestion as done'}, status=500)
+
+
+@login_required
+def fix_suggestion(request, suggestion_id):
+    """Handle fix action for a suggestion"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST method required'}, status=405)
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        # Get user's current account
+        current_account = None
+        if hasattr(request.user, 'profile') and request.user.profile.current_account:
+            current_account = request.user.profile.current_account
+
+        if not current_account:
+            return JsonResponse({'error': 'No account selected'}, status=400)
+
+        # Get suggestion
+        from data_quality.models import CategorySuggestion
+        suggestion = get_object_or_404(
+            CategorySuggestion,
+            id=suggestion_id,
+            connection__account=current_account,
+            status='PENDING'
+        )
+
+        # Use suggestion handler
+        from data_quality.services.category_suggestion_handler import CategorySuggestionHandler
+        handler = CategorySuggestionHandler()
+        result = handler.handle_fix_action(suggestion, request.user)
+
+        if result['success']:
+            return JsonResponse({
+                'success': True,
+                'message': 'Opening Xero to fix categorization',
+                'xero_url': result['xero_url']
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': result['error']
+            }, status=400)
+
+    except Exception as e:
+        logger.error(f"Error fixing suggestion {suggestion_id}: {str(e)}", exc_info=True)
+        return JsonResponse({'error': 'Failed to fix suggestion'}, status=500)
+
+
+@login_required
+def bulk_ignore_suggestions(request):
+    """Handle bulk ignore action for multiple suggestions"""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST method required'}, status=405)
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        # Get user's current account
+        current_account = None
+        if hasattr(request.user, 'profile') and request.user.profile.current_account:
+            current_account = request.user.profile.current_account
+
+        if not current_account:
+            return JsonResponse({'error': 'No account selected'}, status=400)
+
+        # Get suggestion IDs from request
+        suggestion_ids = request.POST.getlist('suggestion_ids')
+        if not suggestion_ids:
+            return JsonResponse({'error': 'No suggestions selected'}, status=400)
+
+        # Get suggestions
+        from data_quality.models import CategorySuggestion
+        suggestions = CategorySuggestion.objects.filter(
+            id__in=suggestion_ids,
+            connection__account=current_account,
+            status='PENDING'
+        )
+
+        if not suggestions.exists():
+            return JsonResponse({'error': 'No valid suggestions found'}, status=400)
+
+        # Use suggestion handler for bulk operation
+        from data_quality.services.category_suggestion_handler import CategorySuggestionHandler
+        handler = CategorySuggestionHandler()
+        result = handler.handle_bulk_ignore_action(list(suggestions), request.user)
+
+        if result['success']:
+            return JsonResponse({
+                'success': True,
+                'message': f"Ignored {result['processed_count']} suggestions successfully",
+                'processed_count': result['processed_count'],
+                'failed_count': result['failed_count']
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'error': f"Bulk ignore completed with errors: {result['failed_count']} failed",
+                'processed_count': result['processed_count'],
+                'failed_count': result['failed_count'],
+                'errors': result['errors']
+            }, status=400)
+
+    except Exception as e:
+        logger.error(f"Error bulk ignoring suggestions: {str(e)}", exc_info=True)
+        return JsonResponse({'error': 'Failed to bulk ignore suggestions'}, status=500)

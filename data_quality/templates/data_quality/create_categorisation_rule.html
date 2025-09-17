@@ -88,7 +88,7 @@
                     {% csrf_token %}
                     
                     <!-- Basic Rule Information -->
-                    <div class="space-y-6">
+                    <div class="space-y-6" data-controller="category-dropdown">
                         <!-- Xero Organization Selection -->
                         <div class="space-y-2">
                             <label for="{{ form.connection.id_for_label }}" class="block text-sm font-medium text-gray-900">
@@ -154,7 +154,15 @@
                                 <label for="{{ form.suggested_category.id_for_label }}" class="block text-sm font-medium text-gray-900">
                                     Suggested Category <span class="text-red-500">*</span>
                                 </label>
-                                {{ form.suggested_category }}
+                                <turbo-frame id="category-dropdown-frame">
+                                    <select data-category-dropdown-target="categorySelect"
+                                            name="{{ form.suggested_category.name }}"
+                                            id="{{ form.suggested_category.id_for_label }}"
+                                            class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-green focus:border-brand-green sm:text-sm"
+                                            disabled>
+                                        <option value="">Select Xero Organization first...</option>
+                                    </select>
+                                </turbo-frame>
                                 {% if form.suggested_category.help_text %}
                                     <div class="text-sm text-gray-600">{{ form.suggested_category.help_text }}</div>
                                 {% endif %}

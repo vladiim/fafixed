@@ -42,7 +42,7 @@ def transaction_list(request, integration_prefix_id):
         }
         
         logger.info(f"Rendering transaction list with {transactions.count()} total transactions, showing page {page_obj.number} of {paginator.num_pages}")
-        return render(request, 'financial_data/transaction_list.html', context)
+        return render(request, 'integrations/transaction_list.html', context)
         
     except Exception as e:
         logger.error(f"Failed to load transaction list for integration {integration_prefix_id}: {str(e)}", exc_info=True)

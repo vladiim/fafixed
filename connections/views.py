@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
 from turbo_helper import turbo_stream
 from integrations.models import Integration, IntegrationProvider, OAuthState
+from .models import Connection
 from integrations.services.base import IntegrationServiceRegistry
 from integrations.managers import IntegrationManager
 from core.models import Account
@@ -228,37 +229,19 @@ def sync_integration(request, integration_prefix_id):
 
 @login_required
 def refresh_sync_integration(request, integration_prefix_id):
-    """Refresh sync status for a integration with Turbo Stream response"""
+    """Refresh sync status for a integration - just redirect back to dashboard"""
     try:
         integration = get_object_or_404(
-            Connection,
+            Integration,
             prefix_id=integration_prefix_id,
             account__account_users__user=request.user
         )
-        
-        # Get latest sync information
-        latest_sync = integration.syncs.order_by('-created_at').first()
-        
-        context = {
-            'integration': integration,
-            'latest_sync': latest_sync,
-        }
-        
-        # Return Turbo Stream response to update sync status
-        return turbo_stream.turbo_stream(
-            turbo_stream.replace(
-                f"sync-status-{integration.prefix_id}",
-                render(request, 'integrations/partials/sync_status.html', context).content.decode()
-            ),
-            content_type="text/vnd.turbo-stream.html"
-        )
-        
+
+        # For now, just redirect back to dashboard
+        # The sync status will be refreshed when the page loads
+        messages.success(request, "Sync status refreshed")
+
     except Exception as e:
-        # Return error in Turbo Stream format
-        return turbo_stream.turbo_stream(
-            turbo_stream.replace(
-                f"sync-status-{integration.prefix_id}",
-                f"<div class='text-red-500'>Error: {str(e)}</div>"
-            ),
-            content_type="text/vnd.turbo-stream.html"
-        )
+        messages.error(request, f"Failed to refresh sync: {str(e)}")
+
+    return redirect('dashboard')
