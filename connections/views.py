@@ -199,31 +199,40 @@ def delete_integration(request, integration_prefix_id):
 def sync_integration(request, integration_prefix_id):
     """Trigger data sync for a integration"""
     logger = logging.getLogger(__name__)
-    
+
+    # Get sync type from query parameters (default to incremental)
+    sync_type = request.GET.get('sync_type', 'incremental')
+
     try:
+        from integrations.models import Integration
         integration = get_object_or_404(
-            Connection,
+            Integration,
             prefix_id=integration_prefix_id,
             account__account_users__user=request.user
         )
-        
-        logger.info(f"Syncing integration {integration.prefix_id}")
-        
-        # Get the service for this integration
-        service = ConnectionServiceRegistry.get_service(integration)
-        
-        # Trigger async sync
-        result = service.sync_transactions_async()
-        
-        if result.get('success'):
-            messages.success(request, "Data sync started successfully")
+
+        logger.info(f"Syncing integration {integration.prefix_id} with sync_type: {sync_type}")
+
+        # Trigger sync with specified type using the Integration model directly
+        from integrations.tasks import sync_single_integration
+        result = sync_single_integration.delay(integration.id, sync_type)
+
+        if result:
+            if sync_type == 'full':
+                messages.success(request, "Full data resync started successfully. This will fetch all transaction data including tracking categories.")
+            else:
+                messages.success(request, "Data sync started successfully")
         else:
-            messages.error(request, f"Failed to start sync: {result.get('error')}")
-            
+            messages.error(request, f"Failed to start sync")
+
     except Exception as e:
         logger.error(f"Failed to sync integration: {str(e)}", exc_info=True)
         messages.error(request, f"Failed to sync integration: {str(e)}")
-    
+
+    # Redirect back to transaction list if we came from there
+    if 'transaction_list' in request.META.get('HTTP_REFERER', ''):
+        return redirect('financial_data:transaction_list', integration_prefix_id=integration_prefix_id)
+
     return redirect('dashboard')
 
 

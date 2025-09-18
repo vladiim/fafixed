@@ -18,10 +18,16 @@
                     <h2 class="text-3xl font-heading font-bold text-brand-black mb-2">Transactions</h2>
                     <p class="text-gray-600">{{ integration.organization_name }} - {{ total_transactions }} total transactions</p>
                 </div>
-                <a href="{% url 'dashboard' %}" class="btn-secondary">
-                    <i class="fas fa-arrow-left mr-2"></i>
-                    Back to Dashboard
-                </a>
+                <div class="flex items-center space-x-3">
+                    <a href="{% url 'connections:sync_integration' integration.prefix_id %}?sync_type=full" class="btn-primary">
+                        <i class="fas fa-sync mr-2"></i>
+                        Resync All Data
+                    </a>
+                    <a href="{% url 'dashboard' %}" class="btn-secondary">
+                        <i class="fas fa-arrow-left mr-2"></i>
+                        Back to Dashboard
+                    </a>
+                </div>
             </div>
         </div>
 
@@ -58,6 +64,9 @@
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Contact
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Categories
                             </th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Actions
@@ -122,6 +131,32 @@
                                 {% else %}
                                     <span class="text-gray-400">—</span>
                                 {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                <div class="space-y-1">
+                                    {% if transaction.raw_data.line_items %}
+                                        {% with first_line_item=transaction.raw_data.line_items.0 %}
+                                            {% if first_line_item.account_code %}
+                                                <div class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                    {{ first_line_item.account_code }}
+                                                    {% if first_line_item.description %}
+                                                        - {{ first_line_item.description|truncatechars:20 }}
+                                                    {% endif %}
+                                                </div>
+                                            {% endif %}
+                                            {% if first_line_item.tracking %}
+                                                {% for tracking_item in first_line_item.tracking %}
+                                                    <div class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                        {{ tracking_item.name }}: {{ tracking_item.option|default:"—" }}
+                                                    </div>
+                                                {% endfor %}
+                                            {% endif %}
+                                        {% endwith %}
+                                    {% endif %}
+                                    {% if not transaction.raw_data.line_items or not transaction.raw_data.line_items.0.account_code %}
+                                        <span class="text-gray-400">—</span>
+                                    {% endif %}
+                                </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                 {% include 'integrations/partials/transaction_actions.html' %}

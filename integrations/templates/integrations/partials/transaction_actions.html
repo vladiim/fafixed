@@ -4,7 +4,7 @@
     <div class="flex items-center space-x-3">
         <!-- Edit Button (Super Admin Only) -->
         {% if user.profile.is_super_admin %}
-        <a href="{% url 'transaction_edit_check' transaction.prefix_id %}" 
+        <a href="{% url 'financial_data:transaction_edit_check' transaction.prefix_id %}" 
            class="text-brand-black hover:text-brand-green transition-colors" 
            title="Edit transaction (Super Admin only)"
            data-turbo="false">
@@ -69,7 +69,7 @@
                     {% endif %}
                     
                     <h4 class="text-sm font-medium text-gray-900 mb-3">Select Validation Rules</h4>
-                    <form action="{% url 'run_transaction_validations' transaction.prefix_id %}" 
+                    <form action="{% url 'data_quality:run_transaction_validations' transaction.prefix_id %}" 
                           method="post" 
                           data-controller="validation-runner"
                           data-action="submit->validation-runner#submit"

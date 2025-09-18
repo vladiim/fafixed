@@ -69,8 +69,8 @@ def extract_tracking_categories_from_line_item(line_item_dict):
     }
 
     try:
-        # Xero API returns tracking categories in a 'tracking_categories' list
-        tracking_categories = line_item_dict.get('tracking_categories', [])
+        # Xero API returns tracking categories in a 'tracking' list
+        tracking_categories = line_item_dict.get('tracking', [])
 
         # Process up to 2 tracking categories (Xero's limit)
         for i, category in enumerate(tracking_categories[:2]):

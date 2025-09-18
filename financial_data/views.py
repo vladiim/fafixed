@@ -28,7 +28,7 @@ def transaction_list(request, integration_prefix_id):
         # Get transactions for this integration, ordered by date (newest first)
         transactions = TransactionData.objects.filter(
             integration=integration
-        ).order_by('-date', '-created_at')
+        ).prefetch_related('line_items').order_by('-date', '-created_at')
         
         # Pagination
         paginator = Paginator(transactions, 25)  # Show 25 transactions per page
