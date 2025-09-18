@@ -1,10 +1,10 @@
-# FAFixed - Financial Data Quality Platform
+# Veridy - Financial Data Quality Platform
 
-FAFixed is a Django-based SaaS application for financial accountants that integrates with Xero to pull transaction data and run validation rules to detect data quality issues like duplicate transactions.
+Veridy is a Django-based SaaS application for financial accountants that integrates with Xero to pull transaction data and run validation rules to detect data quality issues like duplicate transactions.
 
 ## Project Overview
 
-FAFixed helps accountants identify and resolve data quality issues in their clients' financial data by:
+Veridy helps accountants identify and resolve data quality issues in their clients' financial data by:
 1. Integrating with Xero to pull transaction history
 2. Running configurable validation rules against the data
 3. Presenting issues through an intuitive dashboard interface
@@ -17,7 +17,7 @@ FAFixed helps accountants identify and resolve data quality issues in their clie
 - **`connections/`** - OAuth integration and API connection management
 - **`financial_data/`** - Transaction storage, Xero sync, and financial data management
 - **`data_quality/`** - Validation rules system and data quality checks
-- **`fafixed/`** - Django project configuration
+- **`veridy/`** - Django project configuration
 
 ### Multi-App Refactoring (95% Complete)
 The project has been refactored from a monolithic `integrations/` app into focused domain apps:

@@ -3,9 +3,9 @@ from celery import Celery
 from django.conf import settings
 
 # Set the default Django settings module for the 'celery' program.
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'fafixed.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'veridy.settings')
 
-app = Celery('fafixed')
+app = Celery('veridy')
 
 # Using a string here means the worker doesn't have to serialize
 # the configuration object to child processes.

@@ -40,19 +40,19 @@ CELERY_RESULT_BACKEND=redis://localhost:6379/0
 ### 1. Start Celery Worker
 In one terminal window:
 ```bash
-uv run celery -A fafixed worker --loglevel=info --queues=sync,cleanup,auth
+uv run celery -A veridy worker --loglevel=info --queues=sync,cleanup,auth
 ```
 
 ### 2. Start Celery Beat Scheduler (for periodic tasks)
 In another terminal window:
 ```bash
-uv run celery -A fafixed beat --loglevel=info
+uv run celery -A veridy beat --loglevel=info
 ```
 
 ### 3. Optional: Monitor Tasks (Flower)
 ```bash
 pip install flower
-uv run celery -A fafixed flower
+uv run celery -A veridy flower
 ```
 Then visit http://localhost:5555
 

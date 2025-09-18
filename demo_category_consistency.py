@@ -8,8 +8,8 @@ import sys
 import django
 
 # Setup Django
-sys.path.append('/Users/vlad/code/fafixed')
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'fafixed.settings')
+sys.path.append('/Users/vlad/code/veridy')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'veridy.settings')
 django.setup()
 
 from decimal import Decimal

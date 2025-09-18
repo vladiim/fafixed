@@ -1,8 +1,8 @@
-# Python Style Guide for fafixed
+# Python Style Guide for veridy
 # Following PEP 8 with practical adjustments for Django web applications
 
 """
-This module demonstrates the coding standards and style guide for the fafixed project.
+This module demonstrates the coding standards and style guide for the veridy project.
 We follow PEP 8 with some practical adjustments for Django development.
 """
 
@@ -227,7 +227,7 @@ def calculate_reconciliation_difference(bank_amount: float, xero_amount: float) 
 # =============================================================================
 
 """
-Key Style Decisions for fafixed:
+Key Style Decisions for veridy:
 
 1. PEP 8 compliant with practical adjustments
 2. Single-line returns for simple guard clauses

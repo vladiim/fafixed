@@ -1,16 +1,16 @@
 """
-ASGI config for fafixed project.
+ASGI config for veridy project.
 """
 import os
 from django.core.asgi import get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.auth import AuthMiddlewareStack
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'fafixed.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'veridy.settings')
 
 django_asgi_app = get_asgi_application()
 
-from fafixed.routing import websocket_urlpatterns
+from veridy.routing import websocket_urlpatterns
 
 application = ProtocolTypeRouter({
     "http": django_asgi_app,

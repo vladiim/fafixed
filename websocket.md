@@ -18,7 +18,7 @@
 
 ## 🔧 What We Implemented
 
-### 1. Fixed WebSocket Consumer (`fafixed/routing.py`)
+### 1. Fixed WebSocket Consumer (`veridy/routing.py`)
 ```python
 class TurboStreamCableConsumer(WebsocketConsumer):
     # Implements proper ActionCable protocol
@@ -99,7 +99,7 @@ def run_transaction_validations_task(transaction_id):
 7. Turbo processes streams and updates DOM
 
 ### Key Files Modified
-- `fafixed/routing.py` - **KEEP** (working ActionCable consumer)
+- `veridy/routing.py` - **KEEP** (working ActionCable consumer)
 - `integrations/signals.py` - **CLEAN** (remove SPIKE code, keep structure)
 - `integrations/tasks.py` - **CLEAN** (remove SPIKE task, implement real logic)
 - `integrations/views.py` - **CLEAN** (remove SPIKE view/logging)

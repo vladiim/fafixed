@@ -1,5 +1,5 @@
 [project]
-name = "fafixed"
+name = "veridy"
 version = "0.1.0"
 description = "SaaS for financial accountants to clean Xero data with AI"
 readme = "README.md"

@@ -38,7 +38,7 @@ class XeroConfig(BaseIntegrationConfig):
         if settings.DEBUG:
             base_url = 'http://localhost:8000'
         else:
-            base_url = 'https://fafixed.com'
+            base_url = 'https://veridy.ai'
         
         return f'{base_url}/xero/callback/'
     

@@ -13,7 +13,7 @@ fi
 
 # Start Celery worker in background
 echo "Starting Celery worker..."
-uv run celery -A fafixed worker --loglevel=info &
+uv run celery -A veridy worker --loglevel=info &
 CELERY_PID=$!
 
 # Start Tailwind CSS watcher in background with polling for reliable file watching
@@ -32,7 +32,7 @@ collect_static() {
 watch_templates() {
     while inotifywait -r -e modify,create,delete ./templates/ ./**/templates/ 2>/dev/null; do
         # Touch a Python file to trigger daphne reload
-        touch ./fafixed/__init__.py
+        touch ./veridy/__init__.py
     done &
     TEMPLATE_WATCHER_PID=$!
 }

@@ -13,7 +13,7 @@ fi
 
 # Start Celery worker in background
 echo "Starting Celery worker..."
-uv run celery -A fafixed worker --loglevel=info &
+uv run celery -A veridy worker --loglevel=info &
 CELERY_PID=$!
 
 # Start Tailwind CSS watcher in background with polling for reliable file watching

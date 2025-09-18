@@ -17,8 +17,8 @@ User Click → Stimulus → Django View → Celery Task → Django Signal → We
 - `templates/base.html` - Imports Stimulus and Turbo libraries
 
 ### Backend
-- `fafixed/routing.py` - ActionCable WebSocket consumer
-- `fafixed/asgi.py` - ASGI configuration for WebSocket support
+- `veridy/routing.py` - ActionCable WebSocket consumer
+- `veridy/asgi.py` - ASGI configuration for WebSocket support
 - `*/views.py` - Form processing and task dispatch
 - `*/tasks.py` - Background Celery tasks
 - `*/signals.py` - Django signals for broadcasting
@@ -185,10 +185,10 @@ websocket.onmessage = (e) => console.log('Message:', e.data)
 ### Monitor Background Tasks
 ```bash
 # Check Celery worker status
-celery -A fafixed inspect active
+celery -A veridy inspect active
 
 # Monitor task events  
-celery -A fafixed events
+celery -A veridy events
 ```
 
 ### Check Channel Groups

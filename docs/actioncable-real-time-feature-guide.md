@@ -35,16 +35,16 @@ DOM Update ← ActionCable ← Turbo Stream ← Django Signal ← Model Update
 The framework provides these pre-configured components:
 
 ```python
-# fafixed/consumers.py - ActionCable compatible WebSocket consumers
+# veridy/consumers.py - ActionCable compatible WebSocket consumers
 class TurboStreamCableConsumer(SyncConsumer):
     """Synchronous WebSocket consumer with ActionCable message format"""
     
-# fafixed/routing.py - WebSocket routing with dual consumer support  
+# veridy/routing.py - WebSocket routing with dual consumer support  
 websocket_urlpatterns = [
     re_path(r'cable$', TurboStreamCableConsumer.as_asgi()),
 ]
 
-# fafixed/asgi.py - ASGI application with Channel Layers
+# veridy/asgi.py - ASGI application with Channel Layers
 application = ProtocolTypeRouter({
     "websocket": AuthMiddlewareStack(URLRouter(websocket_urlpatterns)),
 })
