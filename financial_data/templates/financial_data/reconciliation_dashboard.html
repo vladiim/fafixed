@@ -97,15 +97,18 @@
                                                     {% endif %}
 
                                                     <!-- Match Button -->
-                                                    {% if match.confidence >= 0.8 %}
-                                                        <button class="inline-flex items-center px-3 py-1 border border-transparent rounded-md text-xs font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                                                            Auto-Match
-                                                        </button>
-                                                    {% else %}
-                                                        <button class="inline-flex items-center px-3 py-1 border border-gray-300 rounded-md text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                                                            Match
-                                                        </button>
-                                                    {% endif %}
+                                                    <form method="post" action="{% url 'financial_data:reconcile_payment' item.transaction.prefix_id match.invoice.prefix_id %}" class="inline">
+                                                        {% csrf_token %}
+                                                        {% if match.confidence >= 0.8 %}
+                                                            <button type="submit" class="inline-flex items-center px-3 py-1 border border-transparent rounded-md text-xs font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                                                                Auto-Match
+                                                            </button>
+                                                        {% else %}
+                                                            <button type="submit" class="inline-flex items-center px-3 py-1 border border-gray-300 rounded-md text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                                                Match
+                                                            </button>
+                                                        {% endif %}
+                                                    </form>
                                                 </div>
                                             </div>
                                         {% endfor %}

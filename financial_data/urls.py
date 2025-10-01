@@ -14,6 +14,7 @@ urlpatterns = [
 
     # Reconciliation
     path('reconciliation/<str:integration_prefix_id>/', views.reconciliation_dashboard, name='reconciliation_dashboard'),
+    path('reconcile/<str:transaction_prefix_id>/<str:invoice_prefix_id>/', views.reconcile_payment, name='reconcile_payment'),
 
     # Transaction management
     path('transactions/<str:integration_prefix_id>/', views.transaction_list, name='transaction_list'),

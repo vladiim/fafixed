@@ -498,3 +498,68 @@ def reconciliation_dashboard(request, integration_prefix_id):
         logger.error(f"Failed to load reconciliation dashboard for integration {integration_prefix_id}: {str(e)}", exc_info=True)
         messages.error(request, f"Failed to load reconciliation dashboard: {str(e)}")
         return redirect('dashboard')
+
+
+@login_required
+def reconcile_payment(request, transaction_prefix_id, invoice_prefix_id):
+    """Manually reconcile a transaction to an invoice"""
+    logger = logging.getLogger(__name__)
+
+    if request.method != 'POST':
+        return redirect('dashboard')
+
+    logger.info(f"Manual reconciliation requested: transaction {transaction_prefix_id} -> invoice {invoice_prefix_id} by user {request.user.email}")
+
+    try:
+        from financial_data.models import Transaction, InvoicePayment
+        from financial_data.services.accounting_repository import AccountingRepository
+        from financial_data.services.payment_reconciler import PaymentReconciler
+
+        # Get transaction
+        transaction = get_object_or_404(
+            Transaction.objects.select_related('connection', 'connection__account'),
+            prefix_id=transaction_prefix_id,
+            connection__account__account_users__user=request.user
+        )
+
+        # Get invoice
+        invoice = get_object_or_404(
+            SalesInvoice.objects.select_related('integration', 'account'),
+            prefix_id=invoice_prefix_id,
+            account__account_users__user=request.user
+        )
+
+        # Verify they're for the same integration/account
+        if transaction.connection.account != invoice.account:
+            messages.error(request, "Transaction and invoice are from different accounts")
+            return redirect('financial_data:reconciliation_dashboard', integration_prefix_id=invoice.integration.prefix_id)
+
+        # Check if already reconciled
+        if transaction.is_reconciled:
+            messages.warning(request, "Transaction is already reconciled")
+            return redirect('financial_data:reconciliation_dashboard', integration_prefix_id=invoice.integration.prefix_id)
+
+        # Initialize reconciler
+        repository = AccountingRepository(invoice.integration)
+        reconciler = PaymentReconciler(repository)
+
+        # Calculate confidence
+        confidence = reconciler.calculate_match_confidence(transaction, invoice)
+
+        # Perform reconciliation
+        payment = reconciler.reconcile_transaction(
+            transaction=transaction,
+            invoice=invoice,
+            confidence=confidence,
+            user=request.user
+        )
+
+        messages.success(request, f"Successfully matched transaction {transaction.prefix_id} to invoice {invoice.invoice_number} (confidence: {confidence:.0%})")
+        logger.info(f"Manual reconciliation successful: {transaction.prefix_id} -> {invoice.invoice_number} (confidence: {confidence:.2%})")
+
+        return redirect('financial_data:reconciliation_dashboard', integration_prefix_id=invoice.integration.prefix_id)
+
+    except Exception as e:
+        logger.error(f"Failed to reconcile transaction {transaction_prefix_id} to invoice {invoice_prefix_id}: {str(e)}", exc_info=True)
+        messages.error(request, f"Failed to reconcile payment: {str(e)}")
+        return redirect('dashboard')
