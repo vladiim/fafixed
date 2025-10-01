@@ -59,6 +59,10 @@ class XeroAccountingSyncService:
             self._sync_sales_invoices(sync_service, tenant_id, modified_since, result)
             self._sync_purchase_bills(sync_service, tenant_id, modified_since, result)
 
+            # Run payment reconciliation after invoices are synced
+            reconciliation_result = self._reconcile_payments(sync_service)
+            result['reconciliation'] = reconciliation_result
+
             # Calculate totals
             result['total_synced'] = (
                 result['contacts']['synced'] +
@@ -151,3 +155,99 @@ class XeroAccountingSyncService:
         except Exception as e:
             logger.error(f"Purchase bills sync failed: {str(e)}")
             result['bills']['errors'] += 1
+
+    def _reconcile_payments(self, sync_service) -> Dict:
+        """
+        Automatically reconcile bank transactions to invoices
+
+        Returns:
+            Dictionary with reconciliation results
+        """
+        from financial_data.services.payment_reconciler import PaymentReconciler
+        from financial_data.models import Transaction
+
+        logger.info(f"Running payment reconciliation for integration {self.integration.id}...")
+
+        reconciliation_result = {
+            'auto_matched': 0,
+            'suggested': 0,
+            'no_match': 0,
+            'errors': 0,
+        }
+
+        try:
+            # Get all unreconciled transactions for this integration's connection
+            # Note: Transaction uses 'connection' FK, need to map from integration
+            from connections.models import Connection
+
+            try:
+                connection = Connection.objects.get(
+                    external_account_id=self.integration.external_account_id,
+                    account=self.integration.account
+                )
+            except Connection.DoesNotExist:
+                logger.warning(f"No connection found for integration {self.integration.id}, skipping reconciliation")
+                return reconciliation_result
+
+            unreconciled_transactions = Transaction.objects.filter(
+                connection=connection,
+                is_reconciled=False,
+                transaction_type='receive'  # Only match incoming payments
+            ).order_by('-date')[:100]  # Limit to last 100 for performance
+
+            if not unreconciled_transactions:
+                logger.info("No unreconciled transactions to process")
+                return reconciliation_result
+
+            # Initialize reconciler
+            reconciler = PaymentReconciler(sync_service.repository)
+
+            for transaction in unreconciled_transactions:
+                try:
+                    # Find matches for this transaction
+                    matches = reconciler.find_invoice_matches(transaction)
+
+                    if not matches:
+                        reconciliation_result['no_match'] += 1
+                        continue
+
+                    best_match = matches[0]  # Highest confidence match
+
+                    # Auto-reconcile if confidence is high enough
+                    if reconciler.should_auto_reconcile(best_match.confidence):
+                        reconciler.reconcile_transaction(
+                            transaction,
+                            best_match.invoice,
+                            best_match.confidence
+                        )
+                        reconciliation_result['auto_matched'] += 1
+                        logger.info(
+                            f"Auto-matched transaction {transaction.prefix_id} to "
+                            f"invoice {best_match.invoice.invoice_number} "
+                            f"(confidence: {best_match.confidence:.2%})"
+                        )
+                    else:
+                        # Low confidence - just log as suggestion
+                        reconciliation_result['suggested'] += 1
+                        logger.info(
+                            f"Suggested match for transaction {transaction.prefix_id}: "
+                            f"invoice {best_match.invoice.invoice_number} "
+                            f"(confidence: {best_match.confidence:.2%})"
+                        )
+
+                except Exception as e:
+                    logger.error(f"Error reconciling transaction {transaction.prefix_id}: {str(e)}")
+                    reconciliation_result['errors'] += 1
+
+            logger.info(
+                f"Reconciliation complete: {reconciliation_result['auto_matched']} auto-matched, "
+                f"{reconciliation_result['suggested']} suggested, "
+                f"{reconciliation_result['no_match']} no match, "
+                f"{reconciliation_result['errors']} errors"
+            )
+
+        except Exception as e:
+            logger.error(f"Payment reconciliation failed: {str(e)}", exc_info=True)
+            reconciliation_result['errors'] += 1
+
+        return reconciliation_result
