@@ -978,6 +978,204 @@ class XeroIntegrationService(BaseIntegrationService):
         # Simple Xero URL format: https://go.xero.com/Bank/ViewTransaction.aspx?bankTransactionID={id}
         return f"https://go.xero.com/Bank/ViewTransaction.aspx?bankTransactionID={transaction_id}"
 
+    # Accounting API Methods
+
+    def fetch_contacts(self, tenant_id: str, modified_since: str = None) -> List[dict]:
+        """
+        Fetch contacts (customers/suppliers) from Xero
+
+        Args:
+            tenant_id: Xero tenant/organization ID
+            modified_since: ISO date string for incremental sync (optional)
+
+        Returns:
+            List of contact dicts from Xero API
+        """
+        def fetch_contacts_api():
+            api_client = self._create_api_client()
+            accounting_api = AccountingApi(api_client)
+
+            kwargs = {'xero_tenant_id': tenant_id}
+            if modified_since:
+                kwargs['if_modified_since'] = modified_since
+
+            response = accounting_api.get_contacts(**kwargs)
+            return response
+
+        response = self._api_call_with_retry(fetch_contacts_api)
+
+        if not response or not response.contacts:
+            return []
+
+        # Convert to dict format
+        contacts = []
+        for contact in response.contacts:
+            contact_dict = {
+                'ContactID': contact.contact_id,
+                'Name': contact.name,
+                'EmailAddress': getattr(contact, 'email_address', ''),
+                'IsCustomer': getattr(contact, 'is_customer', False),
+                'IsSupplier': getattr(contact, 'is_supplier', False),
+                'TaxNumber': getattr(contact, 'tax_number', ''),
+                'Addresses': [],
+                'Phones': [],
+            }
+
+            # Add addresses
+            if hasattr(contact, 'addresses') and contact.addresses:
+                for addr in contact.addresses:
+                    contact_dict['Addresses'].append({
+                        'AddressLine1': getattr(addr, 'address_line1', ''),
+                        'AddressLine2': getattr(addr, 'address_line2', ''),
+                        'City': getattr(addr, 'city', ''),
+                        'Region': getattr(addr, 'region', ''),
+                        'PostalCode': getattr(addr, 'postal_code', ''),
+                        'Country': getattr(addr, 'country', ''),
+                    })
+
+            # Add phones
+            if hasattr(contact, 'phones') and contact.phones:
+                for phone in contact.phones:
+                    contact_dict['Phones'].append({
+                        'PhoneNumber': getattr(phone, 'phone_number', ''),
+                    })
+
+            contacts.append(contact_dict)
+
+        return contacts
+
+    def fetch_chart_of_accounts(self, tenant_id: str) -> List[dict]:
+        """
+        Fetch chart of accounts from Xero
+
+        Args:
+            tenant_id: Xero tenant/organization ID
+
+        Returns:
+            List of account dicts from Xero API
+        """
+        def fetch_accounts_api():
+            api_client = self._create_api_client()
+            accounting_api = AccountingApi(api_client)
+
+            response = accounting_api.get_accounts(xero_tenant_id=tenant_id)
+            return response
+
+        response = self._api_call_with_retry(fetch_accounts_api)
+
+        if not response or not response.accounts:
+            return []
+
+        accounts = []
+        for account in response.accounts:
+            account_dict = {
+                'AccountID': account.account_id,
+                'Code': account.code,
+                'Name': account.name,
+                'Type': self._safe_get_value(account.type),
+                'Status': self._safe_get_value(account.status),
+                'TaxType': getattr(account, 'tax_type', ''),
+                'SystemAccount': getattr(account, 'system_account', False),
+            }
+            accounts.append(account_dict)
+
+        return accounts
+
+    def fetch_invoices(self, tenant_id: str, invoice_type: str = 'ACCREC',
+                      modified_since: str = None) -> List[dict]:
+        """
+        Fetch invoices from Xero
+
+        Args:
+            tenant_id: Xero tenant/organization ID
+            invoice_type: 'ACCREC' for sales invoices, 'ACCPAY' for bills
+            modified_since: ISO date string for incremental sync (optional)
+
+        Returns:
+            List of invoice dicts from Xero API
+        """
+        def fetch_invoices_api():
+            api_client = self._create_api_client()
+            accounting_api = AccountingApi(api_client)
+
+            kwargs = {
+                'xero_tenant_id': tenant_id,
+                'where': f'Type=="{invoice_type}"'
+            }
+            if modified_since:
+                kwargs['if_modified_since'] = modified_since
+
+            response = accounting_api.get_invoices(**kwargs)
+            return response
+
+        response = self._api_call_with_retry(fetch_invoices_api)
+
+        if not response or not response.invoices:
+            return []
+
+        invoices = []
+        for invoice in response.invoices:
+            invoice_dict = {
+                'InvoiceID': invoice.invoice_id,
+                'Type': self._safe_get_value(invoice.type),
+                'InvoiceNumber': invoice.invoice_number,
+                'Reference': getattr(invoice, 'reference', ''),
+                'Status': self._safe_get_value(invoice.status),
+                'LineAmountTypes': self._safe_get_value(getattr(invoice, 'line_amount_types', 'Exclusive')),
+                'SubTotal': float(invoice.sub_total or 0),
+                'TotalTax': float(invoice.total_tax or 0),
+                'Total': float(invoice.total or 0),
+                'AmountDue': float(invoice.amount_due or 0),
+                'AmountPaid': float(invoice.amount_paid or 0),
+                'AmountCredited': float(getattr(invoice, 'amount_credited', 0)),
+                'CurrencyCode': self._safe_get_value(getattr(invoice, 'currency_code', 'AUD')),
+                'Date': invoice.date.isoformat() if invoice.date else None,
+                'DueDate': invoice.due_date.isoformat() if invoice.due_date else None,
+                'HasAttachments': getattr(invoice, 'has_attachments', False),
+                'HasErrors': getattr(invoice, 'has_errors', False),
+                'Contact': {},
+                'LineItems': [],
+            }
+
+            # Add contact info
+            if hasattr(invoice, 'contact') and invoice.contact:
+                invoice_dict['Contact'] = {
+                    'ContactID': invoice.contact.contact_id,
+                    'Name': invoice.contact.name,
+                }
+
+            # Add line items
+            if hasattr(invoice, 'line_items') and invoice.line_items:
+                for line_item in invoice.line_items:
+                    line_dict = {
+                        'LineItemID': getattr(line_item, 'line_item_id', ''),
+                        'Description': line_item.description or '',
+                        'Quantity': float(line_item.quantity or 1),
+                        'UnitAmount': float(line_item.unit_amount or 0),
+                        'AccountCode': line_item.account_code or '',
+                        'TaxType': getattr(line_item, 'tax_type', ''),
+                        'TaxAmount': float(getattr(line_item, 'tax_amount', 0)),
+                        'LineAmount': float(line_item.line_amount or 0),
+                        'DiscountRate': float(getattr(line_item, 'discount_rate', 0)),
+                'ItemCode': getattr(line_item, 'item_code', ''),
+                        'Tracking': [],
+                    }
+
+                    # Add tracking categories
+                    if hasattr(line_item, 'tracking') and line_item.tracking:
+                        for track in line_item.tracking:
+                            line_dict['Tracking'].append({
+                                'TrackingCategoryID': getattr(track, 'tracking_category_id', ''),
+                                'Name': getattr(track, 'name', ''),
+                                'Option': getattr(track, 'option', ''),
+                            })
+
+                    invoice_dict['LineItems'].append(line_dict)
+
+            invoices.append(invoice_dict)
+
+        return invoices
+
 
 # Register the service
 IntegrationServiceRegistry.register('xero', XeroIntegrationService)

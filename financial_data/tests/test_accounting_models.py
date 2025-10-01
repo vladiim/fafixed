@@ -204,11 +204,11 @@ class ChartOfAccountsEntryModelTest(TestCase):
         """Test account type validation"""
         valid_types = ['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE', 'COST_OF_SALES']
 
-        for account_type in valid_types:
+        for idx, account_type in enumerate(valid_types):
             account_entry = ChartOfAccountsEntry.objects.create(
                 integration=self.integration,
                 account=self.account,
-                code=f"10{len(account_type)}",  # unique codes
+                code=f"10{idx}",  # unique codes
                 name=f"Test {account_type}",
                 account_type=account_type,
                 external_account_id=f"acc_{account_type.lower()}"
@@ -219,11 +219,11 @@ class ChartOfAccountsEntryModelTest(TestCase):
         """Test account category validation"""
         valid_categories = ['SALES', 'OTHER_INCOME', 'OFFICE_EXPENSES', 'PAYROLL', 'GST_COLLECTED', 'GST_PAID']
 
-        for category in valid_categories:
+        for idx, category in enumerate(valid_categories):
             account_entry = ChartOfAccountsEntry.objects.create(
                 integration=self.integration,
                 account=self.account,
-                code=f"20{len(category)}",  # unique codes
+                code=f"20{idx}",  # unique codes
                 name=f"Test {category}",
                 account_type="REVENUE",
                 category=category,
@@ -306,6 +306,7 @@ class SalesInvoiceModelTest(TestCase):
             account=self.account,
             contact=self.contact,
             invoice_number="INV-OVERDUE",
+            external_invoice_id="xero_overdue",
             due_date=date.today() - timedelta(days=30),
             amount_due=Decimal('500.00'),
             status='SENT',
@@ -319,6 +320,7 @@ class SalesInvoiceModelTest(TestCase):
             account=self.account,
             contact=self.contact,
             invoice_number="INV-CURRENT",
+            external_invoice_id="xero_current",
             due_date=date.today() + timedelta(days=30),
             amount_due=Decimal('500.00'),
             status='SENT',
@@ -338,6 +340,7 @@ class SalesInvoiceModelTest(TestCase):
             account=self.account,
             contact=self.contact,
             invoice_number="INV-PAID",
+            external_invoice_id="xero_paid",
             due_date=date.today() - timedelta(days=30),
             amount_due=Decimal('0.00'),
             status='PAID',
@@ -360,7 +363,8 @@ class SalesInvoiceModelTest(TestCase):
                 external_invoice_id=f"xero_{status.lower()}",
                 status=status,
                 subtotal=Decimal('100.00'),
-                total_amount=Decimal('100.00')
+                total_amount=Decimal('100.00'),
+                amount_due=Decimal('100.00')  # Required field
             )
             self.assertEqual(invoice.status, status)
 
@@ -373,7 +377,8 @@ class SalesInvoiceModelTest(TestCase):
             invoice_number="INV-001",
             external_invoice_id="xero_inv_123",
             subtotal=Decimal('1000.00'),
-            total_amount=Decimal('1000.00')
+            total_amount=Decimal('1000.00'),
+            amount_due=Decimal('1000.00')  # Required field
         )
 
         expected = "Invoice INV-001 - Test Customer"
@@ -407,9 +412,10 @@ class InvoiceLineItemModelTest(TestCase):
             account=self.account,
             contact=self.contact,
             invoice_number="INV-001",
-            external_invoice_id="xero_inv_123",
+            external_invoice_id="xero_inv_lineitem_test",
             subtotal=Decimal('1000.00'),
-            total_amount=Decimal('1100.00')
+            total_amount=Decimal('1100.00'),
+            amount_due=Decimal('1100.00')  # Required field
         )
         self.chart_account = ChartOfAccountsEntry.objects.create(
             integration=self.integration,
@@ -446,12 +452,16 @@ class InvoiceLineItemModelTest(TestCase):
         line1 = InvoiceLineItem.objects.create(
             invoice=self.invoice,
             description="Item 1",
+            account_code="200",
+            unit_amount=Decimal('500.00'),
             line_number=1,
             line_amount=Decimal('500.00')
         )
         line2 = InvoiceLineItem.objects.create(
             invoice=self.invoice,
             description="Item 2",
+            account_code="200",
+            unit_amount=Decimal('500.00'),
             line_number=2,
             line_amount=Decimal('500.00')
         )
@@ -465,6 +475,8 @@ class InvoiceLineItemModelTest(TestCase):
         line_item = InvoiceLineItem.objects.create(
             invoice=self.invoice,
             description="Professional Services",
+            account_code="200",
+            unit_amount=Decimal('1000.00'),
             line_number=1,
             line_amount=Decimal('1000.00')
         )
@@ -477,10 +489,12 @@ class InvoiceLineItemModelTest(TestCase):
         line_item = InvoiceLineItem.objects.create(
             invoice=self.invoice,
             description="Test Item",
+            account_code="200",
             quantity=Decimal('5.0'),
             unit_amount=Decimal('100.00'),
-            discount_rate=Decimal('10.0'),  # 10% discount
+            discount_rate=Decimal('0.10'),  # 10% as decimal (max_digits=5, decimal_places=4)
             tax_amount=Decimal('45.00'),  # GST on discounted amount
+            line_amount=Decimal('450.00'),  # Required field
             line_number=1
         )
 
@@ -488,9 +502,7 @@ class InvoiceLineItemModelTest(TestCase):
         # With GST: 450 + 45 = 495 total
         expected_line_amount = Decimal('450.00')  # Before tax
 
-        # We'll calculate this in the model or manually set it for now
-        line_item.line_amount = expected_line_amount
-        line_item.save()
+        self.assertEqual(line_item.line_amount, expected_line_amount)
 
         self.assertEqual(line_item.line_amount, expected_line_amount)
         self.assertEqual(line_item.tax_amount, Decimal('45.00'))

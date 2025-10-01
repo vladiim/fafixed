@@ -322,6 +322,169 @@ class InvoiceLineItem(models.Model, PrefixIdMixin):
         return f"{self.invoice.invoice_number} - Line {self.line_number}: {self.description}"
 
 
+class PurchaseBill(AccountingData, PrefixIdMixin):
+    """Purchase bills/invoices from suppliers"""
+
+    BILL_STATUS = [
+        ('DRAFT', 'Draft'),
+        ('SUBMITTED', 'Submitted'),
+        ('AUTHORISED', 'Authorised'),
+        ('PAID', 'Paid'),
+        ('VOIDED', 'Voided'),
+        ('DELETED', 'Deleted'),
+    ]
+
+    # Supplier Information
+    contact = models.ForeignKey(Contact, on_delete=models.PROTECT, related_name='purchase_bills')
+
+    # Core bill data
+    bill_number = models.CharField(max_length=100, blank=True)  # Our internal number
+    invoice_number = models.CharField(max_length=100)  # Supplier's invoice number
+    reference = models.CharField(max_length=255, blank=True)
+
+    # Dates
+    invoice_date = models.DateField(null=True, blank=True)
+    due_date = models.DateField(null=True, blank=True)
+    expected_payment_date = models.DateField(null=True, blank=True)
+    fully_paid_on_date = models.DateField(null=True, blank=True)
+
+    # Financial Details
+    currency_code = models.CharField(max_length=3, default='AUD')
+    currency_rate = models.DecimalField(max_digits=10, decimal_places=6, default=1.0)
+
+    # Amounts
+    subtotal = models.DecimalField(max_digits=15, decimal_places=2)
+    total_tax = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    total_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    amount_paid = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    amount_due = models.DecimalField(max_digits=15, decimal_places=2)
+
+    # Status
+    status = models.CharField(max_length=20, choices=BILL_STATUS, default='DRAFT')
+    has_attachments = models.BooleanField(default=False)
+
+    # Provider Integration
+    external_bill_id = models.CharField(max_length=255)
+    external_data = models.JSONField(default=dict)
+
+    # Tracking
+    last_synced_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['integration', 'external_bill_id']
+        indexes = [
+            models.Index(fields=['integration', 'status']),
+            models.Index(fields=['integration', 'invoice_date']),
+            models.Index(fields=['contact', 'status']),
+            models.Index(fields=['account', 'status', 'due_date']),
+        ]
+
+    def __str__(self):
+        return f"Bill {self.invoice_number} - {self.contact.name}"
+
+
+class BillLineItem(models.Model, PrefixIdMixin):
+    """Line items for purchase bills"""
+
+    bill = models.ForeignKey(PurchaseBill, on_delete=models.CASCADE, related_name='line_items')
+
+    # Line Item Details
+    item_code = models.CharField(max_length=100, blank=True)
+    description = models.TextField()
+
+    # Chart of Accounts
+    account_code = models.CharField(max_length=20)
+    chart_account = models.ForeignKey(ChartOfAccountsEntry, on_delete=models.PROTECT,
+                                    null=True, blank=True, related_name='bill_line_items')
+
+    # Quantities and Pricing
+    quantity = models.DecimalField(max_digits=15, decimal_places=4, default=1)
+    unit_amount = models.DecimalField(max_digits=15, decimal_places=4)
+    discount_rate = models.DecimalField(max_digits=5, decimal_places=4, default=0)
+    discount_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+    line_amount = models.DecimalField(max_digits=15, decimal_places=2)
+
+    # Tax Information
+    tax_type = models.CharField(max_length=50, blank=True)
+    tax_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+
+    # Tracking Categories
+    tracking_category_1_id = models.CharField(max_length=255, blank=True)
+    tracking_category_1_name = models.CharField(max_length=200, blank=True)
+    tracking_category_1_option = models.CharField(max_length=200, blank=True)
+    tracking_category_2_id = models.CharField(max_length=255, blank=True)
+    tracking_category_2_name = models.CharField(max_length=200, blank=True)
+    tracking_category_2_option = models.CharField(max_length=200, blank=True)
+
+    # Provider Integration
+    external_line_item_id = models.CharField(max_length=255, blank=True)
+    external_data = models.JSONField(default=dict)
+
+    # Ordering
+    line_number = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        ordering = ['line_number']
+        indexes = [
+            models.Index(fields=['bill', 'line_number']),
+            models.Index(fields=['chart_account']),
+        ]
+
+    def __str__(self):
+        return f"{self.bill.invoice_number} - Line {self.line_number}: {self.description}"
+
+
+class InvoicePayment(AccountingData, PrefixIdMixin):
+    """Links bank transactions to invoices for payment reconciliation"""
+
+    PAYMENT_STATUS = [
+        ('PENDING', 'Pending Reconciliation'),
+        ('MATCHED', 'Matched to Invoice'),
+        ('PARTIAL', 'Partial Payment'),
+        ('OVERPAID', 'Overpayment'),
+        ('UNMATCHED', 'No Invoice Match'),
+    ]
+
+    # Relationships
+    invoice = models.ForeignKey(SalesInvoice, on_delete=models.CASCADE,
+                               related_name='payments', null=True, blank=True)
+    transaction = models.ForeignKey('Transaction', on_delete=models.CASCADE,
+                                   related_name='invoice_payments')
+
+    # Payment details
+    payment_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    payment_date = models.DateField()
+
+    # Reconciliation
+    status = models.CharField(max_length=20, choices=PAYMENT_STATUS, default='PENDING')
+    reconciliation_confidence = models.FloatField(default=0.0)  # 0.0 to 1.0
+    reconciled_by = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.SET_NULL)
+    reconciled_at = models.DateTimeField(null=True, blank=True)
+
+    # Provider-specific
+    external_payment_id = models.CharField(max_length=255, blank=True)
+    external_data = models.JSONField(default=dict)
+
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ['integration', 'external_payment_id']
+        indexes = [
+            models.Index(fields=['integration', 'status']),
+            models.Index(fields=['account', 'payment_date']),
+            models.Index(fields=['transaction']),
+            models.Index(fields=['invoice']),
+        ]
+
+    def __str__(self):
+        invoice_ref = f"Invoice {self.invoice.invoice_number}" if self.invoice else "No Invoice"
+        return f"Payment {self.payment_amount} - {invoice_ref}"
+
+
 class Transaction(models.Model, PrefixIdMixin):
     """Stores transaction data from external systems"""
     
@@ -480,6 +643,9 @@ Contact = Contact.has_prefix_id('cnt')
 ChartOfAccountsEntry = ChartOfAccountsEntry.has_prefix_id('coa')
 SalesInvoice = SalesInvoice.has_prefix_id('inv')
 InvoiceLineItem = InvoiceLineItem.has_prefix_id('iln')
+PurchaseBill = PurchaseBill.has_prefix_id('pbi')
+BillLineItem = BillLineItem.has_prefix_id('bln')
+InvoicePayment = InvoicePayment.has_prefix_id('pmt')
 Transaction = Transaction.has_prefix_id('txn')
 
 

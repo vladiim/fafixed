@@ -382,3 +382,113 @@ def refresh_transaction_status_task(self, transaction_prefix_id):
         raise
 
 
+
+@shared_task(bind=True, autoretry_for=(Exception,), retry_kwargs={'max_retries': 3, 'countdown': 300})
+def sync_accounting_data(self, integration_id: int, sync_type: str = 'incremental'):
+    """
+    Background task to sync accounting data (contacts, invoices, bills, chart of accounts)
+
+    Args:
+        integration_id: ID of the Integration to sync
+        sync_type: 'full' or 'incremental'
+
+    Returns:
+        Dict with sync results
+    """
+    from financial_data.services.accounting_sync import AccountingSyncService
+    from integrations.services.xero_service import XeroIntegrationService
+
+    logger.info(f"Starting accounting sync for integration {integration_id} (type: {sync_type})")
+
+    try:
+        # Get integration
+        integration = Integration.objects.select_related('account', 'provider').get(id=integration_id)
+
+        if integration.provider.name != 'xero':
+            return {"status": "error", "message": f"Accounting sync only supported for Xero"}
+
+        # Initialize services
+        xero_service = XeroIntegrationService(integration)
+        sync_service = AccountingSyncService(integration)
+
+        # Get tenant ID
+        tenant_id = integration.external_account_id
+        if not tenant_id:
+            return {"status": "error", "message": "No tenant ID found"}
+
+        result = {
+            "status": "success",
+            "integration_id": integration_id,
+            "organization_name": integration.organization_name,
+            "sync_type": sync_type,
+            "contacts": {"synced": 0, "errors": 0},
+            "accounts": {"synced": 0, "errors": 0},
+            "invoices": {"synced": 0, "errors": 0},
+            "bills": {"synced": 0, "errors": 0},
+            "errors": []
+        }
+
+        # 1. Sync Contacts
+        try:
+            modified_since = None if sync_type == 'full' else sync_service._get_last_sync_date('contacts').isoformat()
+            raw_contacts = xero_service.fetch_contacts(tenant_id, modified_since=modified_since)
+            
+            for raw_contact in raw_contacts:
+                try:
+                    if sync_service.process_contact(raw_contact):
+                        result["contacts"]["synced"] += 1
+                except Exception as e:
+                    result["contacts"]["errors"] += 1
+        except Exception as e:
+            result["errors"].append(f"Contacts: {str(e)}")
+
+        # 2. Sync Chart of Accounts
+        try:
+            raw_accounts = xero_service.fetch_chart_of_accounts(tenant_id)
+            
+            for raw_account in raw_accounts:
+                try:
+                    if sync_service.process_chart_account(raw_account):
+                        result["accounts"]["synced"] += 1
+                except Exception as e:
+                    result["accounts"]["errors"] += 1
+        except Exception as e:
+            result["errors"].append(f"Accounts: {str(e)}")
+
+        # 3. Sync Sales Invoices
+        try:
+            modified_since = None if sync_type == 'full' else sync_service._get_last_sync_date('invoices').isoformat()
+            raw_invoices = xero_service.fetch_invoices(tenant_id, invoice_type='ACCREC', modified_since=modified_since)
+            
+            for raw_invoice in raw_invoices:
+                try:
+                    if sync_service.process_sales_invoice(raw_invoice):
+                        result["invoices"]["synced"] += 1
+                except Exception as e:
+                    result["invoices"]["errors"] += 1
+        except Exception as e:
+            result["errors"].append(f"Invoices: {str(e)}")
+
+        # 4. Sync Purchase Bills
+        try:
+            modified_since = None if sync_type == 'full' else sync_service._get_last_sync_date('bills').isoformat()
+            raw_bills = xero_service.fetch_invoices(tenant_id, invoice_type='ACCPAY', modified_since=modified_since)
+            
+            for raw_bill in raw_bills:
+                try:
+                    if sync_service.process_purchase_bill(raw_bill):
+                        result["bills"]["synced"] += 1
+                except Exception as e:
+                    result["bills"]["errors"] += 1
+        except Exception as e:
+            result["errors"].append(f"Bills: {str(e)}")
+
+        total_synced = result["contacts"]["synced"] + result["accounts"]["synced"] + result["invoices"]["synced"] + result["bills"]["synced"]
+        logger.info(f"Accounting sync complete: {total_synced} items synced")
+
+        result["total_synced"] = total_synced
+        return result
+
+    except Exception as e:
+        logger.error(f"Accounting sync failed: {str(e)}", exc_info=True)
+        return {"status": "error", "message": str(e)}
