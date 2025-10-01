@@ -735,22 +735,34 @@ class XeroIntegrationService(BaseIntegrationService):
             
             # Fetch and process bank transactions
             transactions_synced = self._sync_bank_transactions(
-                accounting_api, 
+                accounting_api,
                 sync_type=sync_type,
                 sync_record=sync_record
             )
-            
+
+            # Sync accounting data (contacts, chart of accounts, invoices, bills)
+            from .xero_accounting_sync_service import XeroAccountingSyncService
+            accounting_sync = XeroAccountingSyncService(self)
+            accounting_result = accounting_sync.sync_all(sync_type)
+
+            # Calculate total records synced
+            total_synced = transactions_synced + accounting_result.get('total_synced', 0)
+
             sync_record.status = 'completed'
             sync_record.completed_at = timezone.now()
-            sync_record.records_success = transactions_synced
-            sync_record.records_processed = transactions_synced
+            sync_record.records_success = total_synced
+            sync_record.records_processed = total_synced
             sync_record.save()
-            
+
             # Update integration last sync time
             self.integration.last_sync_at = timezone.now()
             self.integration.save()
-            
-            logger.info(f"Sync completed for integration {self.integration.id}: {transactions_synced} transactions")
+
+            logger.info(
+                f"Sync completed for integration {self.integration.id}: "
+                f"{transactions_synced} transactions, "
+                f"{accounting_result.get('total_synced', 0)} accounting records"
+            )
             
         except Exception as e:
             sync_record.status = 'failed'
