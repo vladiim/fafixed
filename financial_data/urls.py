@@ -12,6 +12,9 @@ urlpatterns = [
     path('invoices/<str:integration_prefix_id>/', views.invoice_list, name='invoice_list'),
     path('invoice/<str:invoice_prefix_id>/', views.invoice_detail, name='invoice_detail'),
 
+    # Reconciliation
+    path('reconciliation/<str:integration_prefix_id>/', views.reconciliation_dashboard, name='reconciliation_dashboard'),
+
     # Transaction management
     path('transactions/<str:integration_prefix_id>/', views.transaction_list, name='transaction_list'),
     path('transactions/<str:transaction_prefix_id>/actions/', views.transaction_actions, name='transaction_actions'),

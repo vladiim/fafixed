@@ -410,3 +410,91 @@ def invoice_detail(request, invoice_prefix_id):
         logger.error(f"Failed to load invoice detail for {invoice_prefix_id}: {str(e)}", exc_info=True)
         messages.error(request, f"Failed to load invoice: {str(e)}")
         return redirect('dashboard')
+
+
+@login_required
+def reconciliation_dashboard(request, integration_prefix_id):
+    """Display payment reconciliation dashboard with unreconciled transactions and matches"""
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"Reconciliation dashboard view called for integration {integration_prefix_id} by user {request.user.email}")
+
+    try:
+        integration = get_object_or_404(
+            Integration,
+            prefix_id=integration_prefix_id,
+            account__account_users__user=request.user,
+            status='active'
+        )
+
+        # Get connection for this integration
+        from connections.models import Connection
+        from financial_data.models import Transaction, InvoicePayment
+        from financial_data.services.accounting_repository import AccountingRepository
+        from financial_data.services.payment_reconciler import PaymentReconciler
+
+        try:
+            connection = Connection.objects.get(
+                external_account_id=integration.external_account_id,
+                account=integration.account
+            )
+        except Connection.DoesNotExist:
+            messages.warning(request, "No bank connection found for this integration")
+            return redirect('dashboard')
+
+        # Get unreconciled transactions (incoming payments only)
+        unreconciled_transactions = Transaction.objects.filter(
+            connection=connection,
+            is_reconciled=False,
+            transaction_type='receive'
+        ).order_by('-date')[:50]  # Show last 50
+
+        # Initialize reconciler
+        repository = AccountingRepository(integration)
+        reconciler = PaymentReconciler(repository)
+
+        # Find matches for each transaction
+        transactions_with_matches = []
+        for transaction in unreconciled_transactions:
+            matches = reconciler.find_invoice_matches(transaction)
+            transactions_with_matches.append({
+                'transaction': transaction,
+                'matches': matches[:3],  # Show top 3 matches
+                'best_match': matches[0] if matches else None,
+                'can_auto_reconcile': matches[0].confidence >= reconciler.AUTO_RECONCILE_THRESHOLD if matches else False
+            })
+
+        # Get recent reconciliations
+        recent_reconciliations = InvoicePayment.objects.filter(
+            integration=integration,
+            status='MATCHED'
+        ).select_related('invoice', 'transaction', 'reconciled_by').order_by('-created_at')[:20]
+
+        # Summary stats
+        total_unreconciled = Transaction.objects.filter(
+            connection=connection,
+            is_reconciled=False,
+            transaction_type='receive'
+        ).count()
+
+        total_unreconciled_amount = Transaction.objects.filter(
+            connection=connection,
+            is_reconciled=False,
+            transaction_type='receive'
+        ).aggregate(Sum('amount'))['amount__sum'] or 0
+
+        context = {
+            'integration': integration,
+            'transactions_with_matches': transactions_with_matches,
+            'recent_reconciliations': recent_reconciliations,
+            'total_unreconciled': total_unreconciled,
+            'total_unreconciled_amount': total_unreconciled_amount,
+        }
+
+        logger.info(f"Rendering reconciliation dashboard with {len(transactions_with_matches)} unreconciled transactions")
+        return render(request, 'financial_data/reconciliation_dashboard.html', context)
+
+    except Exception as e:
+        logger.error(f"Failed to load reconciliation dashboard for integration {integration_prefix_id}: {str(e)}", exc_info=True)
+        messages.error(request, f"Failed to load reconciliation dashboard: {str(e)}")
+        return redirect('dashboard')

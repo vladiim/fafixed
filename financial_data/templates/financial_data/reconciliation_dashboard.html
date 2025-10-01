@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}Payment Reconciliation - {{ integration.organization_name }}{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gray-50">
+    <!-- Header -->
+    <div class="bg-white border-b border-gray-200 px-6 py-4">
+        <div class="flex items-center justify-between">
+            <!-- Breadcrumb -->
+            <div class="flex items-center space-x-2 text-sm text-gray-600">
+                <a href="{% url 'dashboard' %}" class="hover:text-gray-900">Dashboard</a>
+                <span class="text-gray-400">/</span>
+                <span class="text-gray-400">{{ integration.organization_name }}</span>
+                <span class="text-gray-400">/</span>
+                <span class="text-gray-900 font-medium">Reconciliation</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="px-6 py-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div class="bg-white rounded-lg shadow p-6">
+                <dt class="text-sm font-medium text-gray-500 mb-1">Unreconciled Transactions</dt>
+                <dd class="text-2xl font-semibold text-gray-900">{{ total_unreconciled }}</dd>
+            </div>
+            <div class="bg-white rounded-lg shadow p-6">
+                <dt class="text-sm font-medium text-gray-500 mb-1">Unreconciled Amount</dt>
+                <dd class="text-2xl font-semibold text-red-600">${{ total_unreconciled_amount|floatformat:2 }}</dd>
+            </div>
+        </div>
+
+        <!-- Unreconciled Transactions -->
+        <div class="bg-white rounded-lg shadow mb-6">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h2 class="text-lg font-medium text-gray-900">Unreconciled Transactions</h2>
+                <p class="text-sm text-gray-500 mt-1">Incoming payments awaiting invoice matching</p>
+            </div>
+
+            {% if transactions_with_matches %}
+                <div class="divide-y divide-gray-200">
+                    {% for item in transactions_with_matches %}
+                        <div class="p-6">
+                            <!-- Transaction Header -->
+                            <div class="flex items-start justify-between mb-4">
+                                <div class="flex-1">
+                                    <h3 class="text-sm font-medium text-gray-900">{{ item.transaction.prefix_id }}</h3>
+                                    <p class="text-sm text-gray-500 mt-1">{{ item.transaction.date|date:"M j, Y" }}</p>
+                                    {% if item.transaction.description %}
+                                        <p class="text-sm text-gray-600 mt-1">{{ item.transaction.description|truncatewords:20 }}</p>
+                                    {% endif %}
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-lg font-semibold text-gray-900">${{ item.transaction.amount|floatformat:2 }}</p>
+                                </div>
+                            </div>
+
+                            <!-- Matches -->
+                            {% if item.matches %}
+                                <div class="bg-gray-50 rounded-lg p-4">
+                                    <h4 class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-3">Suggested Matches</h4>
+                                    <div class="space-y-3">
+                                        {% for match in item.matches %}
+                                            <div class="flex items-center justify-between bg-white rounded-lg p-3 border border-gray-200">
+                                                <div class="flex-1">
+                                                    <div class="flex items-center">
+                                                        <a href="{% url 'financial_data:invoice_detail' match.invoice.prefix_id %}"
+                                                           class="text-sm font-medium text-blue-600 hover:text-blue-800">
+                                                            {{ match.invoice.invoice_number }}
+                                                        </a>
+                                                        <span class="mx-2 text-gray-400">•</span>
+                                                        <span class="text-sm text-gray-600">{{ match.invoice.contact.name }}</span>
+                                                    </div>
+                                                    <div class="mt-1 flex items-center space-x-3">
+                                                        <span class="text-xs text-gray-500">${{ match.invoice.amount_due|floatformat:2 }} due</span>
+                                                        {% if match.match_reasons %}
+                                                            <span class="text-xs text-gray-400">|</span>
+                                                            <span class="text-xs text-gray-500">{{ match.match_reasons.0 }}</span>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                                <div class="flex items-center space-x-3 ml-4">
+                                                    <!-- Confidence Badge -->
+                                                    {% if match.confidence >= 0.8 %}
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                            {{ match.confidence|floatformat:0 }}% match
+                                                        </span>
+                                                    {% elif match.confidence >= 0.5 %}
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                                            {{ match.confidence|floatformat:0 }}% match
+                                                        </span>
+                                                    {% else %}
+                                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                                            {{ match.confidence|floatformat:0 }}% match
+                                                        </span>
+                                                    {% endif %}
+
+                                                    <!-- Match Button -->
+                                                    {% if match.confidence >= 0.8 %}
+                                                        <button class="inline-flex items-center px-3 py-1 border border-transparent rounded-md text-xs font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                                                            Auto-Match
+                                                        </button>
+                                                    {% else %}
+                                                        <button class="inline-flex items-center px-3 py-1 border border-gray-300 rounded-md text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                                            Match
+                                                        </button>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            {% else %}
+                                <div class="bg-gray-50 rounded-lg p-4">
+                                    <p class="text-sm text-gray-500 text-center">No matching invoices found</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="px-6 py-12 text-center">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <h3 class="mt-2 text-sm font-medium text-gray-900">All caught up!</h3>
+                    <p class="mt-1 text-sm text-gray-500">No unreconciled transactions at the moment.</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Recent Reconciliations -->
+        {% if recent_reconciliations %}
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-lg font-medium text-gray-900">Recent Reconciliations</h2>
+                    <p class="text-sm text-gray-500 mt-1">Last 20 matched payments</p>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Confidence</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for reconciliation in recent_reconciliations %}
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {{ reconciliation.created_at|date:"M j, Y" }}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {% if reconciliation.transaction %}
+                                            {{ reconciliation.transaction.prefix_id }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                        <a href="{% url 'financial_data:invoice_detail' reconciliation.invoice.prefix_id %}"
+                                           class="text-blue-600 hover:text-blue-800">
+                                            {{ reconciliation.invoice.invoice_number }}
+                                        </a>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {{ reconciliation.reconciliation_confidence|floatformat:0 }}%
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {% if reconciliation.reconciled_by %}
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Manual</span>
+                                        {% else %}
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Auto</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-medium">
+                                        ${{ reconciliation.payment_amount|floatformat:2 }}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
