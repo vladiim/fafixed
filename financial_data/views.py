@@ -4,9 +4,11 @@ from django.contrib import messages
 from django.http import JsonResponse, HttpResponse
 from turbo_helper import turbo_stream
 from django.core.paginator import Paginator
+from django.db.models import Q, Count, Sum
 from integrations.models import TransactionData, Integration, TransactionValidationStatus
 from integrations.forms import TransactionEditForm
 from core.decorators import check_user_can_edit_transactions
+from financial_data.models import SalesInvoice, Contact
 import logging
 
 
@@ -289,4 +291,85 @@ def import_chart_accounts(request, integration_prefix_id):
     except Exception as e:
         logger.error(f"Error importing chart accounts: {str(e)}", exc_info=True)
         messages.error(request, f"Failed to import chart of accounts: {str(e)}")
+        return redirect('dashboard')
+
+
+@login_required
+def invoice_list(request, integration_prefix_id):
+    """Display paginated list of sales invoices for an integration"""
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"Invoice list view called for integration {integration_prefix_id} by user {request.user.email}")
+
+    try:
+        integration = get_object_or_404(
+            Integration,
+            prefix_id=integration_prefix_id,
+            account__account_users__user=request.user,
+            status='active'
+        )
+
+        # Base queryset for invoices
+        invoices = SalesInvoice.objects.filter(
+            integration=integration
+        ).select_related('contact').prefetch_related('line_items', 'payments')
+
+        # Filter by status
+        status_filter = request.GET.get('status')
+        if status_filter:
+            invoices = invoices.filter(status=status_filter)
+
+        # Filter by overdue
+        show_overdue = request.GET.get('overdue')
+        if show_overdue == 'true':
+            from datetime import date
+            invoices = invoices.filter(
+                due_date__lt=date.today(),
+                amount_due__gt=0
+            ).exclude(Q(status='PAID') | Q(status='VOIDED') | Q(status='DELETED'))
+
+        # Search by invoice number or contact name
+        search_query = request.GET.get('q')
+        if search_query:
+            invoices = invoices.filter(
+                Q(invoice_number__icontains=search_query) |
+                Q(contact__name__icontains=search_query)
+            )
+
+        # Order by date (newest first)
+        invoices = invoices.order_by('-invoice_date', '-created_at')
+
+        # Calculate summary statistics
+        summary = {
+            'total_count': invoices.count(),
+            'total_amount': invoices.aggregate(Sum('total_amount'))['total_amount__sum'] or 0,
+            'total_due': invoices.aggregate(Sum('amount_due'))['amount_due__sum'] or 0,
+        }
+
+        # Pagination
+        paginator = Paginator(invoices, 25)  # Show 25 invoices per page
+        page_number = request.GET.get('page')
+        page_obj = paginator.get_page(page_number)
+
+        # Get unique statuses for filter dropdown
+        available_statuses = SalesInvoice.objects.filter(
+            integration=integration
+        ).values_list('status', flat=True).distinct()
+
+        context = {
+            'integration': integration,
+            'page_obj': page_obj,
+            'summary': summary,
+            'available_statuses': available_statuses,
+            'status_filter': status_filter,
+            'show_overdue': show_overdue,
+            'search_query': search_query,
+        }
+
+        logger.info(f"Rendering invoice list with {summary['total_count']} total invoices, showing page {page_obj.number} of {paginator.num_pages}")
+        return render(request, 'financial_data/invoice_list.html', context)
+
+    except Exception as e:
+        logger.error(f"Failed to load invoice list for integration {integration_prefix_id}: {str(e)}", exc_info=True)
+        messages.error(request, f"Failed to load invoices: {str(e)}")
         return redirect('dashboard')
