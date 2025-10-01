@@ -121,8 +121,10 @@
                     <tbody class="bg-white divide-y divide-gray-200">
                         {% for invoice in page_obj %}
                             <tr class="hover:bg-gray-50">
-                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
-                                    {{ invoice.invoice_number }}
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <a href="{% url 'financial_data:invoice_detail' invoice.prefix_id %}" class="text-blue-600 hover:text-blue-800">
+                                        {{ invoice.invoice_number }}
+                                    </a>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                     {{ invoice.contact.name }}

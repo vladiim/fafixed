@@ -10,6 +10,7 @@ urlpatterns = [
 
     # Invoice management
     path('invoices/<str:integration_prefix_id>/', views.invoice_list, name='invoice_list'),
+    path('invoice/<str:invoice_prefix_id>/', views.invoice_detail, name='invoice_detail'),
 
     # Transaction management
     path('transactions/<str:integration_prefix_id>/', views.transaction_list, name='transaction_list'),

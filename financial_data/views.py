@@ -373,3 +373,40 @@ def invoice_list(request, integration_prefix_id):
         logger.error(f"Failed to load invoice list for integration {integration_prefix_id}: {str(e)}", exc_info=True)
         messages.error(request, f"Failed to load invoices: {str(e)}")
         return redirect('dashboard')
+
+
+@login_required
+def invoice_detail(request, invoice_prefix_id):
+    """Display detailed view of a single invoice with line items and payments"""
+    logger = logging.getLogger(__name__)
+
+    logger.info(f"Invoice detail view called for invoice {invoice_prefix_id} by user {request.user.email}")
+
+    try:
+        invoice = get_object_or_404(
+            SalesInvoice.objects.select_related('integration', 'contact', 'account')
+                                .prefetch_related('line_items', 'payments', 'payments__transaction'),
+            prefix_id=invoice_prefix_id,
+            account__account_users__user=request.user
+        )
+
+        # Calculate payment totals
+        total_payments = sum(payment.payment_amount for payment in invoice.payments.all())
+
+        # Get related transactions (reconciled payments)
+        reconciled_payments = invoice.payments.filter(status='MATCHED').select_related('transaction')
+
+        context = {
+            'invoice': invoice,
+            'integration': invoice.integration,
+            'total_payments': total_payments,
+            'reconciled_payments': reconciled_payments,
+        }
+
+        logger.info(f"Rendering invoice detail for {invoice.invoice_number} with {invoice.line_items.count()} line items and {invoice.payments.count()} payments")
+        return render(request, 'financial_data/invoice_detail.html', context)
+
+    except Exception as e:
+        logger.error(f"Failed to load invoice detail for {invoice_prefix_id}: {str(e)}", exc_info=True)
+        messages.error(request, f"Failed to load invoice: {str(e)}")
+        return redirect('dashboard')
