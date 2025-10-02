@@ -238,19 +238,33 @@ def sync_integration(request, integration_prefix_id):
 
 @login_required
 def refresh_sync_integration(request, integration_prefix_id):
-    """Refresh sync status for a integration - just redirect back to dashboard"""
+    """Trigger full sync for integration - bank data, invoices, contacts, and payments"""
+    logger = logging.getLogger(__name__)
+
+    # Get sync type from query parameters (default to incremental)
+    sync_type = request.GET.get('sync_type', 'incremental')
+
     try:
+        from integrations.models import Integration
         integration = get_object_or_404(
             Integration,
             prefix_id=integration_prefix_id,
             account__account_users__user=request.user
         )
 
-        # For now, just redirect back to dashboard
-        # The sync status will be refreshed when the page loads
-        messages.success(request, "Sync status refreshed")
+        logger.info(f"Triggering sync for integration {integration.prefix_id} with sync_type: {sync_type}")
+
+        # Trigger Celery task for full orchestrated sync
+        from integrations.tasks import sync_single_integration
+        result = sync_single_integration.delay(integration.id, sync_type)
+
+        if result:
+            messages.success(request, "Sync started. Importing bank data, invoices, and payments...")
+        else:
+            messages.error(request, "Failed to start sync")
 
     except Exception as e:
-        messages.error(request, f"Failed to refresh sync: {str(e)}")
+        logger.error(f"Failed to start sync: {str(e)}", exc_info=True)
+        messages.error(request, f"Failed to start sync: {str(e)}")
 
     return redirect('dashboard')
