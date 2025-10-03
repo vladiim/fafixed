@@ -213,6 +213,11 @@ class AccountingSyncService:
             ChartOfAccountsEntry instance or None if error
         """
         try:
+            # Skip accounts without a code
+            if not raw_account.get('Code'):
+                logger.warning(f"Skipping account without code: {raw_account.get('Name', 'unknown')}")
+                return None
+
             # Transform
             account_data = self.mapper.map_chart_of_accounts_entry(raw_account)
 

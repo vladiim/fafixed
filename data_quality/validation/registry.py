@@ -138,30 +138,22 @@ class ValidationRuleRegistry:
         Automatically discover and load validation rules from the rules package.
         """
         try:
-            # Import the rules package to trigger registration
-            import data_quality.validation.rules
-            
-            # Walk through all modules in the rules package
-            rules_package = data_quality.validation.rules
-            for importer, modname, ispkg in pkgutil.iter_modules(rules_package.__path__, 
-                                                                rules_package.__name__ + "."):
-                if not ispkg:  # Only import modules, not sub-packages
-                    try:
-                        importlib.import_module(modname)
-                        logger.debug(f"Loaded validation rules module: {modname}")
-                    except ImportError as e:
-                        logger.error(f"Failed to import validation rules module {modname}: {e}")
-        except ImportError:
-            # Rules package doesn't exist yet, which is fine during initial setup
-            logger.debug("Validation rules package not found - no rules to load")
+            # Directly iterate over rule modules without importing the package first
+            import os
+            import sys
+
+            rules_dir = os.path.join(os.path.dirname(__file__), 'rules')
+            if os.path.exists(rules_dir):
+                for filename in os.listdir(rules_dir):
+                    if filename.endswith('.py') and not filename.startswith('__'):
+                        module_name = filename[:-3]
+                        try:
+                            importlib.import_module(f'data_quality.validation.rules.{module_name}')
+                            logger.debug(f"Loaded validation rule module: {module_name}")
+                        except ImportError as e:
+                            logger.error(f"Failed to import validation rule {module_name}: {e}")
         except Exception as e:
             logger.error(f"Error during rule discovery: {e}")
-            # Still try to import the duplicates rule directly for tests
-            try:
-                from data_quality.validation.rules import duplicates
-                logger.debug("Directly imported duplicates rule")
-            except ImportError:
-                logger.debug("Could not directly import duplicates rule")
     
     @classmethod
     def clear_registry(cls) -> None:

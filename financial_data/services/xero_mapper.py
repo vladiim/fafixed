@@ -390,7 +390,7 @@ class XeroAccountingMapper:
         Returns:
             Business category string
         """
-        code_int = int(code) if code.isdigit() else 0
+        code_int = int(code) if code and code.isdigit() else 0
 
         if account_type == 'REVENUE':
             # Primary sales accounts: 200-249
