@@ -62,17 +62,18 @@ class IssueManager(models.Manager):
         """Update an existing issue with a new occurrence"""
         issue.count += 1
         issue.last_seen = timezone.now()
-        
-        # Add this occurrence ID to the list
-        if validation_result.occurrence_id and validation_result.occurrence_id not in issue.occurrence_ids:
-            issue.occurrence_ids.append(validation_result.occurrence_id)
-        
+
+        # Add this occurrence ID to the list if it exists
+        occurrence_id = getattr(validation_result, 'occurrence_id', None)
+        if occurrence_id and occurrence_id not in issue.occurrence_ids:
+            issue.occurrence_ids.append(occurrence_id)
+
         # Update latest occurrence details
         issue.latest_occurrence = {
             'rule_name': validation_result.rule_name,
-            'severity': validation_result.severity.value,
-            'message': validation_result.message,
-            'occurrence_id': validation_result.occurrence_id,
+            'severity': validation_result.severity.value if validation_result.severity else None,
+            'message': validation_result.description or validation_result.title,
+            'occurrence_id': occurrence_id,
             'timestamp': timezone.now().isoformat()
         }
         

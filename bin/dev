@@ -11,9 +11,9 @@ if ! pgrep -f redis-server > /dev/null; then
     REDIS_STARTED=true
 fi
 
-# Start Celery worker in background
+# Start Celery worker in background with all queues
 echo "Starting Celery worker..."
-uv run celery -A veridy worker --loglevel=info &
+uv run celery -A veridy worker --loglevel=info -Q celery,sync,cleanup,auth &
 CELERY_PID=$!
 
 # Start Tailwind CSS watcher in background with polling for reliable file watching
