@@ -63,17 +63,33 @@
                                     <div class="flex items-center space-x-2 mt-2">
                                         {% if integration.transaction_count > 0 %}
                                         <a href="{% url 'financial_data:transaction_list' integration.prefix_id %}" class="text-xs text-brand-black hover:underline font-medium">
-                                            {{ integration.transaction_count }} transactions
+                                            {{ integration.transaction_count }} transaction{{ integration.transaction_count|pluralize }}
                                         </a>
                                         {% else %}
                                         <span class="text-xs text-gray-500">{{ integration.transaction_count }} transactions</span>
                                         {% endif %}
+
+                                        {% if integration.invoice_count > 0 %}
+                                        <span class="text-gray-400">•</span>
+                                        <a href="{% url 'financial_data:invoice_list' integration.prefix_id %}" class="text-xs text-brand-black hover:underline font-medium">
+                                            {{ integration.invoice_count }} invoice{{ integration.invoice_count|pluralize }}
+                                        </a>
+                                        {% endif %}
+
                                         {% if integration.needs_reconnect %}
                                         <a href="{% url 'connections:xero_connect' %}" class="text-xs text-orange-600 hover:underline font-medium">
                                             Reconnect
                                         </a>
                                         {% endif %}
                                     </div>
+
+                                    {% if integration.unreconciled_count > 0 %}
+                                    <div class="flex items-center mt-1">
+                                        <a href="{% url 'financial_data:reconciliation_dashboard' integration.prefix_id %}" class="text-xs text-orange-600 hover:text-orange-800 font-medium">
+                                            {{ integration.unreconciled_count }} payment{{ integration.unreconciled_count|pluralize }} need{{ integration.unreconciled_count|pluralize:",s" }} review →
+                                        </a>
+                                    </div>
+                                    {% endif %}
                                 {% else %}
                                     <div class="flex items-center">
                                         <div class="w-2 h-2 bg-orange-400 rounded-full mr-2"></div>

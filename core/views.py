@@ -143,13 +143,37 @@ def dashboard(request):
             )
             enhanced_integration.transaction_count = transaction_stats['total_transactions'] or 0
             enhanced_integration.recent_transaction_count = transaction_stats['recent_transactions'] or 0
-            
+
+            # Get accounting data counts
+            from financial_data.models import SalesInvoice
+            from connections.models import Connection
+
+            enhanced_integration.invoice_count = SalesInvoice.objects.filter(
+                integration=integration
+            ).count()
+
+            # Get unreconciled payment count from connection
+            connection = Connection.objects.filter(
+                external_account_id=integration.external_account_id,
+                account=integration.account
+            ).first()
+
+            if connection:
+                from financial_data.models import Transaction
+                enhanced_integration.unreconciled_count = Transaction.objects.filter(
+                    connection=connection,
+                    is_reconciled=False,
+                    transaction_type='receive'
+                ).count()
+            else:
+                enhanced_integration.unreconciled_count = 0
+
             # Check if integration needs reconnection (no refresh token for active integration)
             enhanced_integration.needs_reconnect = False
             if integration.status == 'active' and hasattr(integration, 'credentials'):
                 if not integration.credentials.refresh_token:
                     enhanced_integration.needs_reconnect = True
-            
+
             enhanced_integrations.append(enhanced_integration)
         
         # Get issue filter from URL parameter (supports multiple statuses)
