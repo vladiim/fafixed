@@ -94,7 +94,7 @@ class SyncWithValidationTestCase(TestCase):
 
         # Mock accounting sync
         mock_service_instance = MagicMock()
-        mock_service_instance.sync_all_accounting_data.return_value = {
+        mock_service_instance.sync_all.return_value = {
             'contacts': {'synced': 50},
             'invoices': {'synced': 75}
         }
@@ -151,7 +151,7 @@ class SyncWithValidationTestCase(TestCase):
 
         # Mock accounting sync
         mock_service_instance = MagicMock()
-        mock_service_instance.sync_all_accounting_data.return_value = {
+        mock_service_instance.sync_all.return_value = {
             'contacts': {'synced': 50}
         }
         mock_accounting_service_class.return_value = mock_service_instance
@@ -187,7 +187,7 @@ class SyncWithValidationTestCase(TestCase):
 
         # Mock accounting sync
         mock_service_instance = MagicMock()
-        mock_service_instance.sync_all_accounting_data.return_value = {
+        mock_service_instance.sync_all.return_value = {
             'contacts': {'synced': 25}
         }
         mock_accounting_service_class.return_value = mock_service_instance
@@ -226,7 +226,7 @@ class SyncWithValidationTestCase(TestCase):
 
         # Mock accounting sync
         mock_service_instance = MagicMock()
-        mock_service_instance.sync_all_accounting_data.return_value = {
+        mock_service_instance.sync_all.return_value = {
             'contacts': {'synced': 10}
         }
         mock_accounting_service_class.return_value = mock_service_instance

@@ -74,7 +74,7 @@ class SyncSingleIntegrationTestCase(TestCase):
             'invoices': {'synced': 75, 'errors': 0},
             'reconciliation': {'auto_matched': 10}
         }
-        mock_service_instance.sync_all_accounting_data.return_value = mock_accounting_result
+        mock_service_instance.sync_all.return_value = mock_accounting_result
         mock_accounting_service_class.return_value = mock_service_instance
 
         # Run task
@@ -85,7 +85,7 @@ class SyncSingleIntegrationTestCase(TestCase):
 
         # Verify accounting sync was called
         mock_accounting_service_class.assert_called_once_with(self.integration)
-        mock_service_instance.sync_all_accounting_data.assert_called_once()
+        mock_service_instance.sync_all.assert_called_once()
 
         # Verify result includes accounting data
         self.assertEqual(result['status'], 'completed')
@@ -131,7 +131,7 @@ class SyncSingleIntegrationTestCase(TestCase):
 
         # Mock accounting sync to raise exception
         mock_service_instance = MagicMock()
-        mock_service_instance.sync_all_accounting_data.side_effect = Exception("Xero API rate limit")
+        mock_service_instance.sync_all.side_effect = Exception("Xero API rate limit")
         mock_accounting_service_class.return_value = mock_service_instance
 
         # Run task
@@ -141,7 +141,7 @@ class SyncSingleIntegrationTestCase(TestCase):
         self.assertEqual(result['status'], 'completed')
 
         # Verify accounting sync was attempted
-        mock_service_instance.sync_all_accounting_data.assert_called_once()
+        mock_service_instance.sync_all.assert_called_once()
 
         # Verify error was logged but task succeeded
         self.assertEqual(result['records_synced'], 100)
@@ -168,7 +168,7 @@ class SyncSingleIntegrationTestCase(TestCase):
             'invoices': {'synced': 60, 'errors': 0},
             'reconciliation': {'auto_matched': 5, 'suggested': 3}
         }
-        mock_service_instance.sync_all_accounting_data.return_value = mock_accounting_result
+        mock_service_instance.sync_all.return_value = mock_accounting_result
         mock_accounting_service_class.return_value = mock_service_instance
 
         # Run task
@@ -207,7 +207,7 @@ class SyncSingleIntegrationTestCase(TestCase):
 
         # Mock accounting sync
         mock_service_instance = MagicMock()
-        mock_service_instance.sync_all_accounting_data.return_value = {
+        mock_service_instance.sync_all.return_value = {
             'contacts': {'synced': 100},
             'invoices': {'synced': 150}
         }
@@ -220,4 +220,4 @@ class SyncSingleIntegrationTestCase(TestCase):
         mock_sync_integration.assert_called_once_with(self.integration, 'full')
 
         # Verify accounting sync was called
-        mock_service_instance.sync_all_accounting_data.assert_called_once()
+        mock_service_instance.sync_all.assert_called_once()

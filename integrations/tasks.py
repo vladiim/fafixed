@@ -99,7 +99,7 @@ def sync_single_integration(self, integration_id, sync_type='incremental'):
 
                 logger.info(f"Starting accounting data sync for integration {integration_id}")
                 accounting_service = XeroAccountingSyncService(integration)
-                accounting_result = accounting_service.sync_all_accounting_data()
+                accounting_result = accounting_service.sync_all()
 
                 # Update sync record metadata with accounting data
                 if not hasattr(sync_record, 'metadata') or sync_record.metadata is None:
