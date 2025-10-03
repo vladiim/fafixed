@@ -66,7 +66,12 @@ def sync_all_integrations(self, sync_type='daily'):
 def sync_single_integration(self, integration_id, sync_type='incremental'):
     """
     Background task to sync a single integration
-    
+
+    Orchestrates:
+    1. Bank transaction sync (via IntegrationManager)
+    2. Accounting data sync (contacts, invoices, payments)
+    3. Automatic payment reconciliation
+
     Args:
         integration_id: ID of the integration to sync
         sync_type: 'daily', 'incremental', or 'full'
@@ -74,23 +79,61 @@ def sync_single_integration(self, integration_id, sync_type='incremental'):
     try:
         integration = Integration.objects.get(id=integration_id, status='active')
         logger.info(f"Syncing integration {integration_id} ({integration.organization_name})")
-        
+
+        # Step 1: Sync bank transactions
         sync_record = IntegrationManager.sync_integration(integration, sync_type)
-        
+
         result = {
             "integration_id": integration_id,
             "status": sync_record.status,
             "records_synced": sync_record.records_success,
             "error_message": sync_record.error_message
         }
-        
+
         if sync_record.status == 'completed':
             logger.info(f"Successfully synced {sync_record.records_success} transactions")
+
+            # Step 2: Sync accounting data (invoices, contacts, payments)
+            try:
+                from integrations.services.xero_accounting_sync_service import XeroAccountingSyncService
+
+                logger.info(f"Starting accounting data sync for integration {integration_id}")
+                accounting_service = XeroAccountingSyncService(integration)
+                accounting_result = accounting_service.sync_all_accounting_data()
+
+                # Update sync record metadata with accounting data
+                if not hasattr(sync_record, 'metadata') or sync_record.metadata is None:
+                    sync_record.metadata = {}
+
+                sync_record.metadata['accounting'] = {
+                    'contacts': accounting_result.get('contacts', {}).get('synced', 0),
+                    'invoices': accounting_result.get('invoices', {}).get('synced', 0),
+                    'reconciled': accounting_result.get('reconciliation', {}).get('auto_matched', 0)
+                }
+                sync_record.save()
+
+                # Add accounting data to result
+                result['accounting'] = sync_record.metadata['accounting']
+
+                logger.info(f"Accounting sync completed: {result['accounting']['contacts']} contacts, "
+                          f"{result['accounting']['invoices']} invoices, "
+                          f"{result['accounting']['reconciled']} payments auto-matched")
+
+            except Exception as accounting_error:
+                # Log accounting sync errors but don't fail the entire task
+                logger.error(f"Accounting sync failed for integration {integration_id}: {str(accounting_error)}",
+                           exc_info=True)
+                result['accounting'] = {
+                    'error': str(accounting_error),
+                    'contacts': 0,
+                    'invoices': 0,
+                    'reconciled': 0
+                }
         else:
             logger.error(f"Sync failed: {sync_record.error_message}")
-        
+
         return result
-        
+
     except Integration.DoesNotExist:
         error_msg = f"Integration {integration_id} not found or not active"
         logger.error(error_msg)
