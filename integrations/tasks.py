@@ -129,6 +129,49 @@ def sync_single_integration(self, integration_id, sync_type='incremental'):
                     'invoices': 0,
                     'reconciled': 0
                 }
+
+            # Step 3: Run data quality validation checks
+            try:
+                from data_quality.validation.engine import ValidationEngine
+                from connections.models import Connection
+
+                # Get connection for this integration
+                connection = Connection.objects.filter(
+                    external_account_id=integration.external_account_id,
+                    account=integration.account
+                ).first()
+
+                if connection:
+                    logger.info(f"Starting data quality validation for integration {integration_id}")
+                    validation_run = ValidationEngine.run_validation(
+                        connection,
+                        triggered_by='automatic_sync'
+                    )
+
+                    # Update sync record metadata with validation results
+                    sync_record.metadata['validation'] = {
+                        'issues_found': validation_run.issues_found,
+                        'rules_passed': validation_run.rules_passed,
+                        'rules_failed': validation_run.rules_failed
+                    }
+                    sync_record.save()
+
+                    # Add validation data to result
+                    result['validation'] = sync_record.metadata['validation']
+
+                    logger.info(f"Validation completed: {validation_run.issues_found} issues found, "
+                              f"{validation_run.rules_passed} rules passed")
+                else:
+                    logger.warning(f"No connection found for integration {integration_id}, skipping validation")
+
+            except Exception as validation_error:
+                # Log validation errors but don't fail the entire task
+                logger.error(f"Validation failed for integration {integration_id}: {str(validation_error)}",
+                           exc_info=True)
+                result['validation'] = {
+                    'error': str(validation_error),
+                    'issues_found': 0
+                }
         else:
             logger.error(f"Sync failed: {sync_record.error_message}")
 
