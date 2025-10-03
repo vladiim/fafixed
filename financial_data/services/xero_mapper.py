@@ -143,7 +143,7 @@ class XeroAccountingMapper:
             'external_account_id': raw_account.get('AccountID', ''),
             'external_data': raw_account,
             'is_active': raw_account.get('Status') == 'ACTIVE',
-            'is_system_account': raw_account.get('SystemAccount', False),
+            'is_system_account': bool(raw_account.get('SystemAccount', False)) if raw_account.get('SystemAccount') else False,
         }
 
         # Map to business category based on account type and code

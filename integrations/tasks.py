@@ -95,10 +95,12 @@ def sync_single_integration(self, integration_id, sync_type='incremental'):
 
             # Step 2: Sync accounting data (invoices, contacts, payments)
             try:
+                from integrations.services.xero_service import XeroIntegrationService
                 from integrations.services.xero_accounting_sync_service import XeroAccountingSyncService
 
                 logger.info(f"Starting accounting data sync for integration {integration_id}")
-                accounting_service = XeroAccountingSyncService(integration)
+                xero_service = XeroIntegrationService(integration)
+                accounting_service = XeroAccountingSyncService(xero_service)
                 accounting_result = accounting_service.sync_all()
 
                 # Update sync record metadata with accounting data

@@ -119,19 +119,19 @@ class BaseValidationRule(ABC):
     
     def is_enabled_for_connection(self, connection) -> bool:
         """
-        Check if this rule is enabled for a specific integration.
-        
+        Check if this rule is enabled for a specific connection.
+
         Args:
-            integration: The Integration instance
-            
+            connection: The Connection instance
+
         Returns:
-            bool: True if rule should run for this integration
+            bool: True if rule should run for this connection
         """
         from ..models import ValidationRuleConfig
-        
+
         try:
             rule_config = ValidationRuleConfig.objects.get(
-                integration=integration,
+                connection=connection,
                 rule_name=self.name
             )
             return rule_config.is_enabled
@@ -141,35 +141,35 @@ class BaseValidationRule(ABC):
     
     def get_config_for_connection(self, connection) -> Dict[str, Any]:
         """
-        Get the configuration for this rule for a specific integration.
-        
+        Get the configuration for this rule for a specific connection.
+
         Args:
-            integration: The Integration instance
-            
+            connection: The Connection instance
+
         Returns:
             Dict: Combined default and connection-specific config
         """
         from ..models import ValidationRuleConfig
-        
+
         # Start with rule's default config
         combined_config = self.config.copy()
-        
+
         try:
             rule_config = ValidationRuleConfig.objects.get(
-                integration=integration,
+                connection=connection,
                 rule_name=self.name
             )
-            # Override with integration-specific config
+            # Override with connection-specific config
             combined_config.update(rule_config.config)
-            
+
             # Override severity if specified
             if rule_config.severity_override:
                 combined_config['severity'] = rule_config.severity_override
-                
+
         except ValidationRuleConfig.DoesNotExist:
             # Use default config only
             pass
-        
+
         return combined_config
     
     def __str__(self):
