@@ -61,11 +61,11 @@ class CategoryDetectionRuleForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         account = kwargs.pop('account', None)
         super().__init__(*args, **kwargs)
-        
+
         # Set up connections dropdown for the account
         if account:
-            from connections.models import Connection
-            self.fields['connection'].queryset = Connection.objects.filter(
+            from integrations.models import Integration
+            self.fields['connection'].queryset = Integration.objects.filter(
                 account=account,
                 status='active'
             ).order_by('organization_name')
