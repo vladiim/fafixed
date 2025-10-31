@@ -163,7 +163,7 @@ def transaction_edit(request, transaction_prefix_id):
             if form.is_valid():
                 form.save()
                 messages.success(request, "Transaction updated successfully")
-                return redirect('transaction_list', integration_prefix_id=transaction.integration.prefix_id)
+                return redirect('financial_data:transaction_list', integration_prefix_id=transaction.integration.prefix_id)
             else:
                 logger.error(f"Form errors: {form.errors}")
                 messages.error(request, "Please correct the errors below")
@@ -194,7 +194,7 @@ def transaction_edit_check(request, transaction_prefix_id):
         return redirect('dashboard')
     
     # Redirect to actual edit view
-    return redirect('transaction_edit', transaction_prefix_id=transaction_prefix_id)
+    return redirect('financial_data:transaction_edit', transaction_prefix_id=transaction_prefix_id)
 
 
 @login_required
@@ -254,9 +254,9 @@ def xero_chart_accounts(request, integration_prefix_id):
 def import_chart_accounts(request, integration_prefix_id):
     """Import chart of accounts and start initial sync"""
     logger = logging.getLogger(__name__)
-    
+
     if request.method != 'POST':
-        return redirect('xero_chart_accounts', integration_prefix_id=integration_prefix_id)
+        return redirect('financial_data:xero_chart_accounts', integration_prefix_id=integration_prefix_id)
     
     try:
         integration = get_object_or_404(
@@ -266,27 +266,38 @@ def import_chart_accounts(request, integration_prefix_id):
             provider__name='xero'
         )
         
-        selected_org_id = request.POST.get('selected_organization')
-        if not selected_org_id:
-            messages.error(request, "No organization selected")
-            return redirect('xero_chart_accounts', integration_prefix_id=integration_prefix_id)
-        
-        # Update integration with selected organization
+        # Debug: Log all POST data to see what we're receiving
+        logger.info(f"POST data: {dict(request.POST)}")
+
+        selected_org_ids = request.POST.getlist('selected_organizations[]')
+        logger.info(f"Selected org IDs: {selected_org_ids}")
+
+        if not selected_org_ids:
+            messages.error(request, "No organisation selected")
+            return redirect('financial_data:xero_chart_accounts', integration_prefix_id=integration_prefix_id)
+
+        # Take the first selected organisation (integration only supports one external_account_id)
+        selected_org_id = selected_org_ids[0]
+
+        # Update integration with selected organisation
         integration.external_account_id = selected_org_id
+
+        # Save selected organisations to config for display
+        integration.config['selected_organizations'] = selected_org_ids
         integration.save()
-        
-        # Start initial sync
-        from integrations.services.base import IntegrationServiceRegistry
-        service = IntegrationServiceRegistry.get_service(integration)
-        
-        result = service.sync_transactions_async()
-        
-        if result.get('success'):
-            messages.success(request, "Chart of accounts imported successfully. Data sync started.")
+
+        logger.info(f"Starting sync for {len(selected_org_ids)} selected organisations")
+
+        # Start initial sync using Celery task
+        from integrations.tasks import sync_single_integration
+        task_result = sync_single_integration.delay(integration.id, 'full')
+
+        if task_result:
+            messages.success(request, f"Chart of accounts imported successfully. Syncing {len(selected_org_ids)} client organisation(s)...")
         else:
-            messages.error(request, f"Failed to start sync: {result.get('error')}")
-        
-        return redirect('transaction_list', integration_prefix_id=integration_prefix_id)
+            messages.error(request, "Failed to start sync")
+
+        return redirect('dashboard')
         
     except Exception as e:
         logger.error(f"Error importing chart accounts: {str(e)}", exc_info=True)

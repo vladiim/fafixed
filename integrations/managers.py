@@ -72,24 +72,64 @@ class IntegrationManager:
         try:
             # Try to revoke with the provider first
             service = IntegrationServiceRegistry.get_service(integration)
-            
+
             # If provider supports revocation, call it
             if hasattr(service, 'revoke_access'):
                 service.revoke_access()
-            
+
             # Update integration status
             integration.status = 'revoked'
             integration.save()
-            
+
             # Delete credentials
             if hasattr(integration, 'credentials'):
                 integration.credentials.delete()
-            
+
             logger.info(f"Revoked integration {integration.id}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to revoke integration {integration.id}: {e}")
+            return False
+
+    @staticmethod
+    def delete_integration(integration: Integration) -> bool:
+        """Delete an integration and all associated data"""
+        try:
+            # Try to revoke with the provider first
+            service = IntegrationServiceRegistry.get_service(integration)
+
+            # If provider supports revocation, call it
+            if hasattr(service, 'revoke_access'):
+                try:
+                    service.revoke_access()
+                except Exception as revoke_error:
+                    logger.warning(f"Failed to revoke with provider during delete: {revoke_error}")
+
+            # Manually delete all related data that might have PROTECT constraints
+            # This ensures we clean up everything before deleting the integration
+
+            # Delete SalesInvoices and related Contacts
+            from financial_data.models import SalesInvoice, Contact
+            SalesInvoice.objects.filter(integration=integration).delete()
+            Contact.objects.filter(integration=integration).delete()
+
+            # Delete TransactionData
+            from integrations.models import TransactionData
+            TransactionData.objects.filter(integration=integration).delete()
+
+            # Delete Issues
+            from integrations.models import Issue
+            Issue.objects.filter(integration=integration).delete()
+
+            # Delete the integration (CASCADE will handle credentials and other related data)
+            integration.delete()
+
+            logger.info(f"Deleted integration {integration.id} and all related data")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to delete integration {integration.id}: {e}")
             return False
     
     @staticmethod

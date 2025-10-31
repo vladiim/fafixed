@@ -6,7 +6,7 @@ app_name = 'financial_data'
 urlpatterns = [
     # Chart of accounts management
     path('xero/chart-accounts/<str:integration_prefix_id>/', views.xero_chart_accounts, name='xero_chart_accounts'),
-    path('import-chart-accounts/', views.import_chart_accounts, name='import_chart_accounts'),
+    path('import-chart-accounts/<str:integration_prefix_id>/', views.import_chart_accounts, name='import_chart_accounts'),
 
     # Invoice management
     path('invoices/<str:integration_prefix_id>/', views.invoice_list, name='invoice_list'),

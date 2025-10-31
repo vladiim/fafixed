@@ -4,7 +4,6 @@ from django.contrib import messages
 from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
 from turbo_helper import turbo_stream
 from integrations.models import Integration, IntegrationProvider, OAuthState
-from .models import Connection
 from integrations.services.base import IntegrationServiceRegistry
 from integrations.managers import IntegrationManager
 from core.models import Account
@@ -117,12 +116,12 @@ def xero_callback(request):
         if result.get('success'):
             messages.success(request, f"Successfully connected to Xero: {result['organization_name']}")
             # Redirect to client organisation selection instead of dashboard
-            return redirect('xero_chart_accounts', integration_prefix_id=integration.prefix_id)
+            return redirect('financial_data:xero_chart_accounts', integration_prefix_id=integration.prefix_id)
         else:
             messages.error(request, "Failed to complete Xero authentication")
             return redirect('dashboard')
         
-    except Connection.DoesNotExist:
+    except Integration.DoesNotExist:
         messages.error(request, "Invalid authentication state")
         return redirect('dashboard')
     except Exception as e:
@@ -135,7 +134,7 @@ def test_integration(request, integration_id):
     """Test an existing integration"""
     try:
         integration = get_object_or_404(
-            Connection, 
+            Integration,
             id=integration_id,
             account__account_users__user=request.user
         )
@@ -158,7 +157,7 @@ def revoke_integration(request, integration_prefix_id):
     """Revoke a integration"""
     try:
         integration = get_object_or_404(
-            Connection,
+            Integration,
             prefix_id=integration_prefix_id,
             account__account_users__user=request.user
         )
@@ -179,7 +178,7 @@ def delete_integration(request, integration_prefix_id):
     """Delete a integration"""
     try:
         integration = get_object_or_404(
-            Connection,
+            Integration,
             prefix_id=integration_prefix_id,
             account__account_users__user=request.user
         )

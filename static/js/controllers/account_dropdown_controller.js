@@ -76,15 +76,15 @@ export default class extends Controller {
   updateButtonText() {
     const count = this.selectedAccounts.size
     if (count === 0) {
-      this.buttonTextTarget.textContent = "Select accounts to import..."
+      this.buttonTextTarget.textContent = "Select client organisations to import..."
       this.buttonTextTarget.classList.add('text-gray-500')
       this.buttonTextTarget.classList.remove('text-brand-black')
     } else if (count === 1) {
-      this.buttonTextTarget.textContent = "1 account selected"
+      this.buttonTextTarget.textContent = "1 client organisation selected"
       this.buttonTextTarget.classList.remove('text-gray-500')
       this.buttonTextTarget.classList.add('text-brand-black')
     } else {
-      this.buttonTextTarget.textContent = `${count} accounts selected`
+      this.buttonTextTarget.textContent = `${count} client organisations selected`
       this.buttonTextTarget.classList.remove('text-gray-500')
       this.buttonTextTarget.classList.add('text-brand-black')
     }
@@ -124,7 +124,7 @@ export default class extends Controller {
     this.selectedAccounts.forEach(accountId => {
       const input = document.createElement('input')
       input.type = 'hidden'
-      input.name = 'selected_accounts'
+      input.name = 'selected_organizations[]'
       input.value = accountId
       this.hiddenInputsTarget.appendChild(input)
     })
