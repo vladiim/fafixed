@@ -84,7 +84,7 @@
             </div>
             
             <div class="p-6">
-                <form method="post" data-turbo="true">
+                <form method="post" action="{% url 'data_quality:create_categorisation_rule' %}" data-turbo="true">
                     {% csrf_token %}
                     
                     <!-- Basic Rule Information -->

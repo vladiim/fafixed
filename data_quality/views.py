@@ -5,7 +5,7 @@ from django.http import JsonResponse
 from django.db import transaction as db_transaction
 from turbo_helper import turbo_stream
 from integrations.models import TransactionData, TransactionValidationStatus, Issue
-from connections.models import Connection
+from integrations.models import Integration
 from django.utils import timezone
 import logging
 import threading
@@ -478,10 +478,10 @@ def configure_smart_categorisation(request):
         
         # Import the CategoryDetectionRule model
         from data_quality.models import CategoryDetectionRule
-        from connections.models import Connection
+        from integrations.models import Integration
         
-        # Get active connections for this account
-        connections = Connection.objects.filter(
+        # Get active integrations for this account
+        integrations = Integration.objects.filter(
             account=current_account,
             status='active'
         )
@@ -500,7 +500,7 @@ def configure_smart_categorisation(request):
         
         context = {
             'rules': rules,
-            'connections': connections,
+            'connections': integrations,
             'active_rules_count': active_rules_count,
             'total_applied': total_applied,
             'success_rate': success_rate,
@@ -531,11 +531,11 @@ def create_categorisation_rule(request):
             messages.error(request, "No account selected")
             return redirect('data_quality:agent_checks')
         
-        # Get all active connections for the account
-        connections = Connection.objects.filter(account=current_account, status='active')
-        if not connections.exists():
-            messages.error(request, "No active Xero connections found")
-            return redirect('data_quality:agent_checks')
+        # Get all active integrations for the account
+        integrations = Integration.objects.filter(account=current_account, status='active')
+        if not integrations.exists():
+            messages.warning(request, "Please connect to Xero first to create categorisation rules")
+            return redirect('connections:xero_connect')
         
         if request.method == 'POST':
             from .forms import CategoryDetectionRuleForm
@@ -576,7 +576,7 @@ def create_categorisation_rule(request):
         
         context = {
             'form': form,
-            'connections': connections,
+            'integrations': integrations,
             'current_account': current_account,
             'rules': rules,
             'operators_json': json.dumps(operators),
@@ -621,17 +621,16 @@ def tracking_categories_dropdown(request, connection_id):
                 'error': 'No account selected'
             })
 
-        # Verify connection belongs to user's account
-        from connections.models import Connection
+        # Verify integration belongs to user's account
         try:
-            connection = Connection.objects.get(
+            connection = Integration.objects.get(
                 id=connection_id,
                 account=current_account,
                 status='active'
             )
-        except Connection.DoesNotExist:
+        except Integration.DoesNotExist:
             return render(request, 'data_quality/partials/category_dropdown_error.html', {
-                'error': 'Connection not found or access denied'
+                'error': 'Integration not found or access denied'
             })
 
         # Get tracking categories for this connection
@@ -670,16 +669,15 @@ def get_tracking_categories_for_connection(request, connection_id):
         if not current_account:
             return JsonResponse({'error': 'No account selected'}, status=400)
 
-        # Verify connection belongs to user's account
-        from connections.models import Connection
+        # Verify integration belongs to user's account
         try:
-            connection = Connection.objects.get(
+            connection = Integration.objects.get(
                 id=connection_id,
                 account=current_account,
                 status='active'
             )
-        except Connection.DoesNotExist:
-            return JsonResponse({'error': 'Connection not found or access denied'}, status=404)
+        except Integration.DoesNotExist:
+            return JsonResponse({'error': 'Integration not found or access denied'}, status=404)
 
         # Get tracking categories for this connection
         from data_quality.models import XeroTrackingCategory
