@@ -98,12 +98,14 @@ The codebase was migrated from an `Integration` model to a `Connection` model, b
 - [x] Phase 1.16: Update JavaScript button text - Use Australian spelling consistently
 - [x] Phase 1.17: Rebuild static files again - Apply Australian spelling changes
 - [x] Phase 1.18: Fix create categorisation rule view - Changed undefined 'connections' to 'integrations'
+- [x] Phase 1.19: Fix CategoryDetectionRuleForm model - Changed Connection to Integration in form queryset
 - [x] Test complete OAuth flow - Verified in server logs (line "Successfully connected to Xero org")
 - [x] Test delete - Verified successfully by user
 - [x] Test reconnection - User successfully deleted and reconnected
 - [x] Test chart accounts selection page - User successfully loaded page
 - [x] Test organisation selection form submission - Form posted successfully after browser cache clear
 - [x] Test create categorisation rule page load - Fixed undefined variable error
+- [x] Test create categorisation rule Xero org dropdown - Fixed to show Integration objects
 - [ ] Test organisation import and sync - Should work now with correct Celery task
 - [ ] Test dashboard display of selected organisations - Should work after successful import
 - [ ] Test sync functionality - May have separate Decimal serialization issue
@@ -206,6 +208,22 @@ The codebase was migrated from an `Integration` model to a `Connection` model, b
 - **After**: `'integrations': integrations,`
 - **Reason**: View was referencing undefined `connections` variable causing "Failed to create categorisation rule" error
 - Same issue as in configure_smart_categorisation view (also fixed)
+- All 147 data_quality tests passing after fix
+
+### 13. Fixed CategoryDetectionRuleForm to Use Integration Model
+**File**: `/Users/vlad/code/fafixed/data_quality/forms.py:67-71`
+- **Before**:
+  ```python
+  from connections.models import Connection
+  self.fields['connection'].queryset = Connection.objects.filter(...)
+  ```
+- **After**:
+  ```python
+  from integrations.models import Integration
+  self.fields['connection'].queryset = Integration.objects.filter(...)
+  ```
+- **Reason**: Form was querying non-existent Connection model, causing Xero organization dropdown to be empty
+- Part of the incomplete Connection → Integration migration
 - All 147 data_quality tests passing after fix
 
 ## Known Issues (Not Addressed)
