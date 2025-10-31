@@ -51,7 +51,7 @@ def register(request):
                 
                 login(request, user)
                 print(f"User logged in, redirecting to xero_connect")
-                return redirect('xero_connect')
+                return redirect('connections:xero_connect')
                 
             except ValueError as e:
                 print(f"ValueError: {e}")
