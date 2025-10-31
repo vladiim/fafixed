@@ -97,11 +97,13 @@ The codebase was migrated from an `Integration` model to a `Connection` model, b
 - [x] Phase 1.15: Save selected organisations to config - Store in integration.config for dashboard display
 - [x] Phase 1.16: Update JavaScript button text - Use Australian spelling consistently
 - [x] Phase 1.17: Rebuild static files again - Apply Australian spelling changes
+- [x] Phase 1.18: Fix create categorisation rule view - Changed undefined 'connections' to 'integrations'
 - [x] Test complete OAuth flow - Verified in server logs (line "Successfully connected to Xero org")
 - [x] Test delete - Verified successfully by user
 - [x] Test reconnection - User successfully deleted and reconnected
 - [x] Test chart accounts selection page - User successfully loaded page
 - [x] Test organisation selection form submission - Form posted successfully after browser cache clear
+- [x] Test create categorisation rule page load - Fixed undefined variable error
 - [ ] Test organisation import and sync - Should work now with correct Celery task
 - [ ] Test dashboard display of selected organisations - Should work after successful import
 - [ ] Test sync functionality - May have separate Decimal serialization issue
@@ -197,6 +199,14 @@ The codebase was migrated from an `Integration` model to a `Connection` model, b
 - Changed "1 account selected" to "1 client organisation selected"
 - Changed "N accounts selected" to "N client organisations selected"
 - **Reason**: Consistent Australian spelling throughout UI
+
+### 12. Fixed Create Categorisation Rule View Context
+**File**: `/Users/vlad/code/fafixed/data_quality/views.py:579`
+- **Before**: `'connections': connections,` (undefined variable)
+- **After**: `'integrations': integrations,`
+- **Reason**: View was referencing undefined `connections` variable causing "Failed to create categorisation rule" error
+- Same issue as in configure_smart_categorisation view (also fixed)
+- All 147 data_quality tests passing after fix
 
 ## Known Issues (Not Addressed)
 
