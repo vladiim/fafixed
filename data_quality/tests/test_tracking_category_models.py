@@ -7,7 +7,8 @@ from django.db import IntegrityError
 from django.utils import timezone
 from datetime import timedelta
 
-from connections.models import Connection, Provider
+from integrations.models import Integration
+from connections.models import Provider
 from data_quality.models import XeroTrackingCategory, XeroTrackingOption
 from core.models import Account
 from django.contrib.auth.models import User

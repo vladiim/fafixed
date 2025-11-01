@@ -399,9 +399,9 @@ class DataQualityMetric(models.Model):
 
 class XeroTrackingCategory(models.Model):
     """Cache of Xero tracking categories for local performance"""
-    
+
     connection = models.ForeignKey(
-        'connections.Connection', 
+        'integrations.Integration',
         on_delete=models.CASCADE,
         related_name='tracking_categories'
     )
@@ -463,14 +463,14 @@ class ConditionOperator(models.TextChoices):
 
 class CategoryDetectionRule(models.Model):
     """User-configurable rules for detecting transaction categories"""
-    
+
     CONDITION_LOGIC_CHOICES = [
         ('ALL', 'All conditions must match'),
         ('ANY', 'Any condition can match'),
     ]
-    
+
     connection = models.ForeignKey(
-        'connections.Connection',
+        'integrations.Integration',
         on_delete=models.CASCADE,
         related_name='category_detection_rules'
     )

@@ -8,7 +8,8 @@ from django.db import IntegrityError
 from decimal import Decimal
 import json
 
-from connections.models import Connection, Provider
+from integrations.models import Integration
+from connections.models import Provider
 from data_quality.models import (
     XeroTrackingCategory, 
     CategoryDetectionRule, 

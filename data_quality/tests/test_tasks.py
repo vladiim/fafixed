@@ -6,7 +6,8 @@ from unittest.mock import Mock, patch
 from django.utils import timezone
 from datetime import timedelta
 
-from connections.models import Connection, Provider
+from integrations.models import Integration
+from connections.models import Provider
 from data_quality.models import (
     XeroTrackingCategory, 
     XeroTrackingOption,

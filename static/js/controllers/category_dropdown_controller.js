@@ -20,7 +20,7 @@ export default class extends Controller {
       // Reset category dropdown
       const categorySelect = this.categorySelectTarget.querySelector('select')
       if (categorySelect) {
-        categorySelect.innerHTML = '<option value="">Select Xero Organization first...</option>'
+        categorySelect.innerHTML = '<option value="">Select Xero Organisation first...</option>'
         categorySelect.disabled = true
       }
       return
