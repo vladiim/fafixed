@@ -9,7 +9,7 @@ from decimal import Decimal
 import json
 
 from integrations.models import Integration
-from connections.models import Provider
+from integrations.models import IntegrationProvider
 from data_quality.models import (
     XeroTrackingCategory, 
     CategoryDetectionRule, 
@@ -33,14 +33,14 @@ class CategoryDetectionRuleModelTest(TestCase):
             name='Test Account',
             account_type='organization'
         )
-        self.provider = Provider.objects.create(
+        self.provider = IntegrationProvider.objects.create(
             name='xero',
             display_name='Xero',
             provider_type='xero',
             auth_url_template='https://api.xero.com/oauth/authorize',
             token_url='https://api.xero.com/oauth/token'
         )
-        self.connection = Connection.objects.create(
+        self.connection = Integration.objects.create(
             account=self.account,
             provider=self.provider,
             external_account_id='test-xero-org-id',
@@ -132,7 +132,7 @@ class CategoryDetectionRuleModelTest(TestCase):
     def test_rule_name_can_be_same_across_connections(self):
         """Test that rule names can be the same across different connections"""
         # Create second connection
-        connection2 = Connection.objects.create(
+        connection2 = Integration.objects.create(
             account=self.account,
             provider=self.provider,
             external_account_id='test-xero-org-id-2',
@@ -301,14 +301,14 @@ class CategorySuggestionModelTest(TestCase):
             name='Test Account',
             account_type='organization'
         )
-        self.provider = Provider.objects.create(
+        self.provider = IntegrationProvider.objects.create(
             name='xero',
             display_name='Xero',
             provider_type='xero',
             auth_url_template='https://api.xero.com/oauth/authorize',
             token_url='https://api.xero.com/oauth/token'
         )
-        self.connection = Connection.objects.create(
+        self.connection = Integration.objects.create(
             account=self.account,
             provider=self.provider,
             external_account_id='test-xero-org-id',

@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 import re
 
 from integrations.models import Integration
-from connections.models import Provider
+from integrations.models import IntegrationProvider
 from data_quality.models import (
     XeroTrackingCategory, 
     CategoryDetectionRule, 
@@ -33,14 +33,14 @@ class CategoryDetectionEngineTest(TestCase):
             name='Test Account',
             account_type='organization'
         )
-        self.provider = Provider.objects.create(
+        self.provider = IntegrationProvider.objects.create(
             name='xero',
             display_name='Xero',
             provider_type='xero',
             auth_url_template='https://api.xero.com/oauth/authorize',
             token_url='https://api.xero.com/oauth/token'
         )
-        self.connection = Connection.objects.create(
+        self.connection = Integration.objects.create(
             account=self.account,
             provider=self.provider,
             external_account_id='test-xero-org-id',

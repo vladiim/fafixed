@@ -7,7 +7,7 @@ from django.utils import timezone
 from datetime import timedelta
 
 from integrations.models import Integration
-from connections.models import Provider
+from integrations.models import IntegrationProvider
 from data_quality.models import XeroTrackingCategory, XeroTrackingOption
 from data_quality.services.xero_sync import XeroTrackingSyncService
 from core.models import Account
@@ -28,14 +28,14 @@ class XeroTrackingSyncServiceTest(TestCase):
             name='Test Account',
             account_type='organization'
         )
-        self.provider = Provider.objects.create(
+        self.provider = IntegrationProvider.objects.create(
             name='xero',
             display_name='Xero',
             provider_type='xero',
             auth_url_template='https://api.xero.com/oauth/authorize',
             token_url='https://api.xero.com/oauth/token'
         )
-        self.connection = Connection.objects.create(
+        self.connection = Integration.objects.create(
             account=self.account,
             provider=self.provider,
             external_account_id='test-xero-org-id',
@@ -373,7 +373,7 @@ class XeroTrackingSyncServiceTest(TestCase):
     def test_sync_preserves_connection_isolation(self, mock_get_client):
         """Test that sync only affects the specific connection"""
         # Create another connection
-        other_connection = Connection.objects.create(
+        other_connection = Integration.objects.create(
             account=self.account,
             provider=self.provider,
             external_account_id='other-xero-org-id',

@@ -126,7 +126,7 @@ class Issue(models.Model, PrefixIdMixin):
     # Use custom manager for aggregation logic
     objects = IssueManager()
     
-    connection = models.ForeignKey('connections.Connection', on_delete=models.CASCADE, related_name='issues')
+    connection = models.ForeignKey('integrations.Integration', on_delete=models.CASCADE, related_name='dq_issues')
     title = models.CharField(max_length=300)
     description = models.TextField()
     category = models.CharField(max_length=50, db_index=True, 
@@ -207,7 +207,7 @@ class ValidationRun(models.Model):
         ('failed', 'Failed'),
     ]
     
-    connection = models.ForeignKey('connections.Connection', on_delete=models.CASCADE, related_name='validation_runs')
+    connection = models.ForeignKey('integrations.Integration', on_delete=models.CASCADE, related_name='dq_validation_runs')
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
@@ -270,7 +270,7 @@ class ValidationRun(models.Model):
 class ValidationRuleConfig(models.Model):
     """Configuration for validation rules per connection"""
     
-    connection = models.ForeignKey('connections.Connection', on_delete=models.CASCADE, related_name='validation_configs')
+    connection = models.ForeignKey('integrations.Integration', on_delete=models.CASCADE, related_name='dq_validation_configs')
     rule_name = models.CharField(max_length=100, db_index=True)
     is_enabled = models.BooleanField(default=True)
     severity_override = models.CharField(max_length=20, blank=True, null=True,
@@ -350,7 +350,7 @@ class IssueResolution(models.Model):
 class DataQualityMetric(models.Model):
     """Track data quality metrics over time"""
     
-    connection = models.ForeignKey('connections.Connection', on_delete=models.CASCADE, related_name='quality_metrics')
+    connection = models.ForeignKey('integrations.Integration', on_delete=models.CASCADE, related_name='dq_quality_metrics')
     date = models.DateField(db_index=True)
     
     # Quality scores (0-100)
@@ -535,7 +535,7 @@ class CategorySuggestion(models.Model):
     ]
     
     connection = models.ForeignKey(
-        'connections.Connection',
+        'integrations.Integration',
         on_delete=models.CASCADE,
         related_name='category_suggestions'
     )
